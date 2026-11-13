@@ -1,310 +1,336 @@
+/* GetFoodie v2 UI. Demonstration data and sessions are local to this browser. */
 "use strict";
-
-/*
- * GETFOODIE PORTFOLIO DEMO
- * Everything here is intentionally fictional and browser-local.
- * Do not use for real authentication, payments, or customer data.
- */
-const DATA_KEY = "getfoodie_portfolio_demo_data_v1";
-const ROLE_KEY = "getfoodie_portfolio_demo_role_v1";
-const ACCOUNT_LIST = [
-  {role:"customer", title:"Customer", email:"customer@demo.getfoodie.app", password:"Demo123!", icon:"🍽️", path:"/"},
-  {role:"business", title:"Restaurant owner", email:"business@demo.getfoodie.app", password:"Demo123!", icon:"🏪", path:"/business"},
-  {role:"admin", title:"Administrator", email:"admin@demo.getfoodie.app", password:"Demo123!", icon:"🛡️", path:"/admin"}
-];
-const IMAGES = {
-  hero:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=960&q=80&fit=crop",
-  burger:"https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=560&q=80&fit=crop",
-  pizza:"https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=560&q=80&fit=crop",
-  bowl:"https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=560&q=80&fit=crop",
-  chicken:"https://images.unsplash.com/photo-1562967914-608f82629710?w=560&q=80&fit=crop",
-  pasta:"https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=560&q=80&fit=crop",
-  coffee:"https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=560&q=80&fit=crop",
-  fries:"https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=560&q=80&fit=crop",
-  restaurant:"https://images.unsplash.com/photo-1552566626-52f8b828add9?w=560&q=80&fit=crop"
-};
-function seed() {
-  return {
-    restaurants:[
-      {id:"r1",name:"The Burger Corner",category:"Burgers & comfort food",rating:4.9,eta:"20–30 min",image:IMAGES.burger,status:"Active"},
-      {id:"r2",name:"Slicetown Pizza",category:"Pizza & pasta",rating:4.8,eta:"25–35 min",image:IMAGES.pizza,status:"Active"},
-      {id:"r3",name:"Bowl & Beyond",category:"Rice bowls & favorites",rating:4.7,eta:"20–40 min",image:IMAGES.bowl,status:"Pending"}
-    ],
-    menu:[
-      {id:1,restaurantId:"r1",name:"Classic Smash Burger",category:"Burgers",price:189,description:"Smashed beef patty, cheese, lettuce and house sauce.",image:IMAGES.burger,active:true},
-      {id:2,restaurantId:"r1",name:"Crispy Chicken Burger",category:"Burgers",price:179,description:"Crispy chicken with tangy slaw and mayo.",image:IMAGES.chicken,active:true},
-      {id:3,restaurantId:"r1",name:"Loaded Fries",category:"Sides",price:129,description:"Golden fries, cheese drizzle and seasoning.",image:IMAGES.fries,active:true},
-      {id:4,restaurantId:"r2",name:"Margherita Pizza",category:"Pizza",price:329,description:"Fresh mozzarella, tomato and basil.",image:IMAGES.pizza,active:true},
-      {id:5,restaurantId:"r2",name:"Creamy Garden Pasta",category:"Pasta",price:269,description:"Creamy pasta finished with herbs and parmesan.",image:IMAGES.pasta,active:true},
-      {id:6,restaurantId:"r2",name:"Iced Latte",category:"Drinks",price:115,description:"Smooth coffee over ice with chilled milk.",image:IMAGES.coffee,active:true},
-      {id:7,restaurantId:"r3",name:"Fresh Chicken Bowl",category:"Rice bowls",price:219,description:"Wholesome rice bowl with fresh vegetables.",image:IMAGES.bowl,active:true},
-      {id:8,restaurantId:"r1",name:"House Iced Coffee",category:"Drinks",price:99,description:"A chilled, bold coffee for any time of day.",image:IMAGES.coffee,active:true}
-    ],
-    orders:[
-      {id:"GF-1042",restaurantId:"r1",items:[{id:1,qty:2},{id:3,qty:1}],total:507,status:"Preparing",payment:"Cash on delivery (demo)",address:"101 Sample Street, Manila",placedAt:"2026-11-13T09:00:00.000Z",cancelRequested:false},
-      {id:"GF-1041",restaurantId:"r1",items:[{id:2,qty:1}],total:179,status:"Delivered",payment:"GCash (simulation only)",address:"42 Demo Avenue, Manila",placedAt:"2026-11-12T08:20:00.000Z",cancelRequested:false}
-    ],
-    cart:[],nextOrder:1043,nextItem:9
-  };
+const C=globalThis.FoodieCore;
+if(!C)throw new Error("GetFoodie core missing");
+let state=C.load(localStorage);
+let session=null;
+try{session=JSON.parse(sessionStorage.getItem(C.SESSION)||"null");}catch(_){}
+const $=id=>document.getElementById(id);
+const root=$("root");
+const price=n=>new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:2}).format(n||0);
+const fmt=d=>{const t=new Date(d);return Number.isNaN(t.getTime())?"—":t.toLocaleString("en-PH",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"});};
+const h=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const roleHome={customer:"/customer",vendor:"/vendor",admin:"/admin"};
+const icon={home:"⌂",orders:"▤",menu:"☷",settings:"⚙",profile:"♙",users:"♙",restaurants:"▦",reports:"◫"};
+let search="",cat="All",storeFilter="All",orderFilter="All",fulfilment="Delivery";
+function persist(){C.save(localStorage,state);}
+function toast(message,type="info"){
+ const node=$("toast");node.textContent=message;node.className="toast show "+(type==="error"?"toast-error":"");
+ clearTimeout(toast.timer);toast.timer=setTimeout(()=>node.classList.remove("show"),3800);
 }
-function load() {
-  try {
-    const parsed=JSON.parse(localStorage.getItem(DATA_KEY));
-    if(parsed && Array.isArray(parsed.restaurants) && Array.isArray(parsed.menu) && Array.isArray(parsed.orders) && Array.isArray(parsed.cart))return parsed;
-  } catch(_error) {}
-  return seed();
+function error(e){toast(e?.message||"Something went wrong.","error");}
+function account(){return session&&state.accounts.find(x=>x.id===session.id&&x.role===session.role&&x.enabled);}
+function syncSession(){const a=account();if(!a){session=null;sessionStorage.removeItem(C.SESSION);}else session={id:a.id,role:a.role,email:a.email,name:a.name};}
+function path(){return location.pathname.replace(/\/+$/,"")||"/";}
+function navigate(to,replace=false){
+ if(!to.startsWith("/"))return;
+ history[replace?"replaceState":"pushState"]({},"",to);
+ render();window.scrollTo(0,0);
 }
-let db=load();
-let role=sessionStorage.getItem(ROLE_KEY)||"guest";
-if(!ACCOUNT_LIST.some(a=>a.role===role))role="guest";
-let selectedRole="customer", afterLogin=null, category="All", search="", restaurantFilter="All";
-const app=document.getElementById("app");
-const currency=new Intl.NumberFormat("en-PH",{style:"currency",currency:"PHP",maximumFractionDigits:0});
-const money=n=>currency.format(Number(n)||0);
-const el=id=>document.getElementById(id);
-function esc(value){return String(value==null?"":value).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function save(){localStorage.setItem(DATA_KEY,JSON.stringify(db));}
-function food(id){return db.menu.find(item=>item.id===Number(id));}
-function restaurant(id){return db.restaurants.find(r=>r.id===id);}
-function badge(status){return '<span class="badge '+esc(String(status).toLowerCase())+'">● '+esc(status)+'</span>';}
-function toast(message){const box=el("toast");box.textContent=message;box.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>box.classList.remove("show"),3200);}
-function showDialog(id){const d=el(id);if(d && !d.open)d.showModal();}
-function closeDialog(id){const d=el(id);if(d && d.open)d.close();}
-function currentRoute(){const path=decodeURIComponent(location.pathname);return ["/","/orders","/business","/admin"].includes(path)?path:"/";}
-function pageName(path){return ({"/":"Explore / All restaurants","/orders":"Customer / Your orders","/business":"Restaurant / Management","/admin":"Platform / Administration"})[path]||"Explore";}
-function navigate(path,replace){
-  const target=["/","/orders","/business","/admin"].includes(path)?path:"/";
-  if(!replace)history.pushState({},"",target);
-  else history.replaceState({},"",target);
-  render();
-  window.scrollTo(0,0);
+function signout(){session=null;sessionStorage.removeItem(C.SESSION);navigate("/login");toast("Signed out. Demo data remains in this browser.");}
+function item(id){return C.item(state,id);}
+function store(id){return C.byId(state,id);}
+function ownStore(){return session?C.vendorStore(state,session):null;}
+function badge(value){const key=String(value).toLowerCase().replace(/[^a-z]+/g,"-");return '<span class="badge status-'+h(key)+'">'+h(value)+'</span>';}
+function btn(text,act,id,style="outline",extra=""){return '<button type="button" class="button '+style+'" data-act="'+h(act)+'"'+(id!=null?' data-id="'+h(id)+'"':"")+' '+extra+'>'+text+'</button>';}
+function title(kicker,heading,sub,action=""){return '<header class="page-header"><div><div class="eyebrow">'+h(kicker)+'</div><h1>'+h(heading)+'</h1><p>'+h(sub)+'</p></div><div class="page-tools">'+action+'</div></header>';}
+function empty(emoji,headline,text,action=""){return '<div class="panel blank"><div class="blank-emoji">'+emoji+'</div><h3>'+h(headline)+'</h3><p>'+h(text)+'</p>'+action+'</div>';}
+function panelHeading(label,meta=""){return '<div class="section-heading"><div><h2>'+h(label)+'</h2><p>'+h(meta)+'</p></div></div>';}
+function metric(label,val,caption,ic="◈"){return '<article class="panel metric"><span class="metric-label">'+ic+' &nbsp; '+h(label)+'</span><strong>'+val+'</strong><small>'+h(caption)+'</small></article>';}
+function breadcrumb(p){return p.split("/").filter(Boolean).map(x=>x[0].toUpperCase()+x.slice(1)).join(" / ");}
+function navItems(role){
+ if(role==="customer")return [{to:"/customer",i:"home",text:"Discover food"},{to:"/customer/orders",i:"orders",text:"My orders"},{to:"/customer/profile",i:"profile",text:"Account & address"}];
+ if(role==="vendor")return [{to:"/vendor",i:"home",text:"Overview"},{to:"/vendor/orders",i:"orders",text:"Order fulfilment"},{to:"/vendor/menu",i:"menu",text:"Menu & inventory"},{to:"/vendor/reports",i:"reports",text:"Sales reports"},{to:"/vendor/settings",i:"settings",text:"Restaurant setup"}];
+ return [{to:"/admin",i:"home",text:"Platform overview"},{to:"/admin/vendors",i:"restaurants",text:"Restaurant approvals"},{to:"/admin/users",i:"users",text:"Accounts & access"},{to:"/admin/settings",i:"settings",text:"Platform setup"}];
 }
-function authorize(path){
-  const required=({"/orders":"customer","/business":"business","/admin":"admin"})[path];
-  if(required && role!==required){openLogin(required,path);return false;}
-  return true;
+function loginScreen(){
+ const accounts=C.CREDENTIALS;
+ return '<div class="auth-page"><section class="auth-story"><div class="auth-brand"><span class="brand-icon">✳</span><b>getfoodie<span class="brand-period">.</span></b><span class="auth-tag">INTERACTIVE DEMO</span></div><div class="auth-story-body"><span class="overline">A FOOD ORDERING PLATFORM · CASE STUDY</span><h1>Good food.<br>All the way <em>to your door.</em></h1><p>Explore a complete ordering and fulfilment journey. Three real demo screens, one shared fictional workspace.</p><div class="auth-feature">✓ Discover and order local favorites</div><div class="auth-feature">✓ Manage a restaurant from order to delivery</div><div class="auth-feature">✓ Configure and oversee the platform</div></div><div class="auth-story-foot"><span>✦ Portfolio practice project</span><span>No real purchases or payments</span></div></section><section class="auth-box"><div class="auth-card"><span class="eyebrow">WELCOME TO GETFOODIE</span><h2>Sign in to explore</h2><p>Choose one of the demo accounts below, then sign in with the sample credentials.</p><div class="demo-user-list">'+accounts.map(a=>'<button type="button" class="demo-user" data-act="fill-login" data-id="'+a.role+'"><span class="role-emoji">'+({customer:"🍔",vendor:"🏪",admin:"🛡️"})[a.role]+'</span><span><strong>'+({customer:"Customer",vendor:"Restaurant owner",admin:"Platform administrator"})[a.role]+'</strong><small>'+h(a.email)+'</small></span><span class="use-link">Use ↗</span></button>').join("")+'</div><form id="loginForm" class="auth-form"><label>Email address<input type="email" id="loginEmail" name="email" placeholder="you@example.com" autocomplete="username" required></label><label>Password<div class="pass-wrap"><input id="loginPassword" type="password" name="password" placeholder="Enter the demo password" autocomplete="current-password" required><button type="button" class="show-pass" data-act="show-password">Show</button></div></label><button class="button primary wide" type="submit">Sign in to demo <span>→</span></button></form><div class="auth-help"><span>All three accounts use <b>Demo123!</b></span><span>This is browser-local demo authentication, not a production identity service.</span></div></div></section></div>';
 }
-function openLogin(wanted,target){
-  selectedRole=wanted||"customer";afterLogin=target||null;
-  selectRole(selectedRole);
-  showDialog("loginDialog");
+function shell(main,p){
+ const role=session.role,nav=navItems(role),label={customer:"CUSTOMER",vendor:"RESTAURANT OWNER",admin:"PLATFORM ADMIN"}[role];
+ const r=ownStore();
+ return '<div class="demo-strip"><span class="strip-dot"></span><b>PORTFOLIO DEMO</b><span>Fictional orders and customers · No live payments</span><button data-act="about">About this demo</button></div><div class="shell app-shell theme-'+role+'"><aside class="sidebar"><a class="brand" href="'+roleHome[role]+'" data-link="'+roleHome[role]+'"><span class="brand-icon">✳</span>getfoodie<span class="brand-period">.</span></a><div class="sidebar-label">'+label+' WORKSPACE</div><nav class="side-nav">'+nav.map(n=>'<a class="nav-link '+((p===n.to||n.to!==roleHome[role]&&p.startsWith(n.to+"/"))?"active":"")+'" href="'+n.to+'" data-link="'+n.to+'"><span class="nav-icon">'+icon[n.i]+'</span><span class="nav-text">'+n.text+'</span></a>').join("")+'</nav><div class="side-bottom"><div class="portfolio-note"><span>✦ &nbsp; PRACTICE PROJECT</span><p>'+({customer:"Place a sample order, then explore order tracking.",vendor:"Accept, prepare, dispatch and complete orders.",admin:"Approve partners and configure the demo platform."})[role]+'</p></div>'+btn("↻ &nbsp; Reset browser data","reset",null,"side-link")+'</div></aside><div class="main-area"><header class="topbar"><span class="mobile-brand"><span class="brand-icon">✳</span><b>getfoodie.</b></span><span class="crumb">'+h(breadcrumb(p))+'</span><div class="top-actions"><span class="status-live"><span></span> Demo environment</span>'+(role==="customer"?btn("🛒 Cart ("+C.getCart(state,session).reduce((n,i)=>n+i.qty,0)+")","cart",null,"top-cart"):"")+'<div class="user-info"><span class="avatar">'+h(session.name[0]||"D")+'</span><span class="account-name"><strong>'+h(session.name)+'</strong><small>'+h(label.toLowerCase())+'</small></span></div>'+btn("Sign out","signout",null,"button-sm")+'</div></header><main id="app" class="page-content">'+main+'</main><footer class="footer"><span>'+h(state.settings.name)+' · Interactive portfolio demonstration</span><span>All activity stays in this browser.</span></footer></div></div>';
 }
-function selectRole(next){
-  selectedRole=next;
-  el("accountOptions").innerHTML=ACCOUNT_LIST.map(a=>'<button type="button" class="role-option '+(a.role===selectedRole?'selected':'')+'" data-role-choice="'+esc(a.role)+'"><span>'+a.icon+'</span>'+esc(a.title)+'</button>').join("");
-  const acc=ACCOUNT_LIST.find(a=>a.role===selectedRole);
-  el("demoEmail").value=acc.email;el("demoPassword").value=acc.password;
-  el("loginError").textContent="";
+function restaurantTiles(){
+ const avail=state.restaurants.filter(r=>r.status==="Approved");
+ const matches=avail.filter(r=>(storeFilter==="All"||storeFilter===r.id)&&(search===""||(r.name+" "+r.category).toLowerCase().includes(search.toLowerCase())));
+ return matches.map(r=>'<button class="panel restaurant-tile '+(storeFilter===r.id?"selected":"")+'" data-act="filter-store" data-id="'+h(r.id)+'"><img src="'+h(r.image)+'" alt="'+h(r.name)+'" loading="lazy"><span class="restaurant-detail"><b>'+h(r.name)+'</b><small>'+h(r.category)+'</small><span class="rating">★ '+r.rating.toFixed(1)+' <span>· ~'+r.eta+' min</span></span></span>'+(!r.open?'<span class="badge status-cancelled">Closed</span>':'')+'</button>').join("")||empty("🔎","No restaurants found","Try a different search.");
 }
-function logout(){role="guest";sessionStorage.removeItem(ROLE_KEY);navigate("/");toast("Exited demo account.");}
-function renderShell(route){
-  const items=[
-    {path:"/",icon:"◫",name:"Explore food"},
-    {path:"/orders",icon:"▤",name:"My orders",count:role==="customer"?db.orders.length:null},
-    {path:"/business",icon:"▦",name:"Restaurant dashboard"},
-    {path:"/admin",icon:"⚙",name:"Admin console"}
-  ];
-  el("sideNav").innerHTML=items.map(x=>'<a class="nav-link '+(x.path===route?'active':'')+'" href="'+x.path+'" data-route="'+x.path+'"><span class="nav-icon">'+x.icon+'</span><span class="nav-text">'+x.name+'</span>'+(x.count?'<span class="nav-count">'+x.count+'</span>':'')+'</a>').join("");
-  const acc=ACCOUNT_LIST.find(a=>a.role===role);
-  el("accountText").textContent=acc?acc.title:"Guest / Sign in";
-  el("avatar").textContent=acc?acc.title.slice(0,1):"G";
-  el("breadcrumb").textContent=pageName(route);
+function dishes(){
+ const available=state.menu.filter(f=>{
+  const r=store(f.restaurantId);
+  return f.active&&f.stock>0&&r&&r.status==="Approved"&&r.open&&(storeFilter==="All"||f.restaurantId===storeFilter)&&(cat==="All"||f.category===cat)&&(search===""||(f.name+" "+f.description+" "+f.category+" "+r.name).toLowerCase().includes(search.toLowerCase()));
+ });
+ return available.map(f=>'<article class="panel food-card"><img class="food-image" src="'+h(f.image)+'" alt="'+h(f.name)+'" loading="lazy"><div class="food-body"><div class="food-type">'+h(f.category)+' <span>· '+h(store(f.restaurantId)?.name)+'</span></div><h3>'+h(f.name)+'</h3><p>'+h(f.description)+'</p><div class="food-footer"><strong>'+price(f.price)+'</strong>'+btn("+ Add","add",f.id,"soft small")+'</div></div></article>').join("")||empty("🍴","Nothing in this category","Try another category, restaurant or search.");
 }
-function header(title,subtitle,actions){
-  return '<div class="page-header"><div><span class="eyebrow">GETFOODIE · INTERACTIVE SHOWCASE</span><h1>'+title+'</h1><p>'+subtitle+'</p></div><div class="page-tools">'+(actions||"")+'</div></div>';
+function customerHome(){
+ const rcount=state.restaurants.filter(x=>x.status==="Approved").length;
+ const categories=["All",...new Set(state.menu.map(f=>f.category))];
+ return title("CUSTOMER / DISCOVER","Find your next craving","Explore restaurants, build a cart, and place an entirely fictional order.",btn("My orders →","go-orders",null,"outline"))+
+ '<div class="panel hero-panel"><div class="hero-copy"><span class="eyebrow">FRESH PICKS, EVERY DAY</span><h2>Hungry? <span class="highlight">We’ve got you.</span></h2><p>'+h(state.settings.announcement)+'</p>'+btn("Explore the menu ↓","browse",null,"primary")+'</div><img class="hero-image" src="'+h(C.IMAGES.burger)+'" alt="Delicious burger"></div>'+
+ '<div class="mini-stats">'+metric("Demo restaurants",String(rcount),"Approved partners","▦")+metric("Available dishes",String(state.menu.filter(f=>f.active&&f.stock>0).length),"Browse the menu","◈")+metric("Your orders",String(state.orders.filter(x=>x.customerId===session.id).length),"Track any time","▤")+'</div>'+
+ '<div class="section-heading" id="restaurants"><div><h2>Restaurants near you</h2><p>Made-up locations, real UI interactions</p></div><div class="search"><span>⌕</span><input id="catalogSearch" type="search" value="'+h(search)+'" placeholder="Search food or restaurants…" aria-label="Search"></div></div><div class="restaurant-grid" id="restaurantTiles">'+restaurantTiles()+'</div>'+
+ '<div class="section-heading" id="menu-section"><div><h2>Popular dishes</h2><p>Browse and add something delicious</p></div>'+btn("Clear filters","clear-filters",null,"button-sm")+'</div><div id="categoryChips" class="filters">'+categories.map(c=>'<button class="chip '+(c===cat?"active":"")+'" data-act="filter-category" data-id="'+h(c)+'">'+h(c)+'</button>').join("")+'</div><div class="food-grid" id="foodGrid">'+dishes()+'</div>';
 }
-function cartTotal(){return db.cart.reduce((sum,c)=>{const f=food(c.id);return sum+(f?f.price*c.qty:0);},0);}
-function cartCount(){return db.cart.reduce((sum,c)=>sum+c.qty,0);}
-function cartButton(){return '<button class="button" data-action="cart">🛒 &nbsp;Cart'+(cartCount()?' ('+cartCount()+')':'')+'</button>';}
-function restaurantCards(){
-  const filtered=db.restaurants.filter(r=>r.status==="Active" && (restaurantFilter==="All"||r.id===restaurantFilter) && (search===""|| (r.name+" "+r.category).toLowerCase().includes(search.toLowerCase())));
-  if(!filtered.length)return '<div class="panel blank"><div class="blank-emoji">🍽️</div><h3>No matching restaurants</h3><p>Try a different search or category.</p></div>';
-  return filtered.map(r=>'<button class="panel restaurant-card" data-action="restaurant" data-id="'+esc(r.id)+'" style="text-align:left;width:100%;font:inherit"><img src="'+esc(r.image)+'" alt="'+esc(r.name)+'" loading="lazy"><div class="r-info"><h3>'+esc(r.name)+'</h3><p>'+esc(r.category)+'</p><div class="rating">★ '+r.rating.toFixed(1)+' <span>· '+esc(r.eta)+'</span></div></div></button>').join("");
+function cartMarkup(){
+ const info=C.cartInfo(state,session);
+ if(!info.lines.length)return empty("🛒","Your cart is empty","Add a dish from the menu to begin.",btn("Browse dishes","close-cart",null,"primary"));
+ return '<div class="cart-items"><p class="subtext">Ordering from <strong>'+h(info.restaurant?.name)+'</strong></p>'+info.lines.map(x=>'<div class="cart-product"><img src="'+h(x.food.image)+'" alt=""><div class="body"><h3>'+h(x.food.name)+'</h3><p>'+price(x.food.price)+' each</p><div class="qty-stepper">'+btn("−","qty",x.food.id,"qty-btn",'data-step="-1"')+'<b>'+x.qty+'</b>'+btn("+","qty",x.food.id,"qty-btn",'data-step="1"')+'</div></div><strong>'+price(x.food.price*x.qty)+'</strong></div>').join("")+'</div><div class="cart-summary"><div class="summary-line"><span>Food subtotal</span><b>'+price(info.subtotal)+'</b></div><div class="summary-line"><span>Delivery fee</span><span>From '+price(state.settings.deliveryFee)+'</span></div><div class="summary-line total"><b>Subtotal</b><b>'+price(info.subtotal)+'</b></div><div class="notice warning">No real orders or payments. All changes are local to this browser.</div>'+btn("Continue to checkout →","checkout",null,"primary wide")+'<div style="margin-top:8px">'+btn("Clear cart","clear-cart",null,"button-sm")+'</div></div>';
 }
-function foodCards(){
-  const visible=db.menu.filter(f=>{
-    const r=restaurant(f.restaurantId);
-    return f.active && r && r.status==="Active" && (restaurantFilter==="All"||f.restaurantId===restaurantFilter) && (category==="All"||f.category===category) && (search===""||(f.name+" "+f.category+" "+f.description+" "+r.name).toLowerCase().includes(search.toLowerCase()));
-  });
-  if(!visible.length)return '<div class="panel blank"><div class="blank-emoji">🔎</div><h3>No dishes found</h3><p>Try a different search or category.</p></div>';
-  return visible.map(f=>'<article class="panel food-card"><img class="food-image" src="'+esc(f.image)+'" alt="'+esc(f.name)+'" loading="lazy"><div class="food-body"><div class="food-type">'+esc(f.category)+'</div><h3>'+esc(f.name)+'</h3><p>'+esc(f.description)+'</p><div class="food-footer"><strong>'+money(f.price)+'</strong><button class="button soft small" data-action="add" data-id="'+f.id+'" aria-label="Add '+esc(f.name)+' to cart">+ Add</button></div></div></article>').join("");
+function customerCheckout(){
+ const info=C.cartInfo(state,session,fulfilment);
+ if(!info.lines.length)return title("CUSTOMER / CHECKOUT","Your cart is empty","Add items from a restaurant before checking out.",btn("Go shopping →","shop",null,"primary"));
+ const isDelivery=fulfilment==="Delivery";
+ const profile=C.account(state,"customer");
+ return title("CUSTOMER / CHECKOUT","Review & place your order","One final check. No payment is processed by this demo.",btn("← Back to menu","shop",null))+
+ '<div class="two-col"><form id="checkoutForm" class="panel form-panel"><div class="panel-label">01 &nbsp; Fulfilment method</div><div class="switch-row"><label class="method '+(isDelivery?"chosen":"")+'"><input type="radio" name="fulfilment" value="Delivery" '+(isDelivery?"checked":"")+' required><span>🛵 Delivery<small>Delivered to a sample address</small></span></label><label class="method '+(!isDelivery?"chosen":"")+'"><input type="radio" name="fulfilment" value="Pickup" '+(!isDelivery?"checked":"")+'><span>🏪 Pickup<small>Collect from the restaurant</small></span></label></div>'+
+ (isDelivery?'<label class="form-label">Delivery address<input type="text" name="address" required minlength="6" maxlength="160" value="'+h(profile?.address||"")+'" placeholder="Enter a fictional address"></label>':'<div class="notice">Collection point: '+h(info.restaurant?.address)+'</div>')+
+ '<label class="form-label">Special instructions<textarea name="notes" maxlength="200" rows="3" placeholder="Optional note to the restaurant"></textarea></label><div class="panel-label second">02 &nbsp; Payment</div><div class="notice warning"><b>'+(!isDelivery?"Pay on pickup":"Cash on delivery")+'</b> · No online payment, credit-card details, or money collection is supported.</div><label class="check"><input type="checkbox" required> I understand this is only a simulated purchase.</label><button type="submit" class="button primary wide">Place demo order <span>'+price(info.total)+' →</span></button></form>'+
+ '<aside class="panel order-summary"><h3>Order summary</h3><p class="subtext">'+h(info.restaurant?.name)+'</p>'+info.lines.map(x=>'<div class="summary-line"><span>'+h(x.qty+" × "+x.food.name)+'</span><b>'+price(x.food.price*x.qty)+'</b></div>').join("")+'<hr><div class="summary-line"><span>Food subtotal</span><b>'+price(info.subtotal)+'</b></div><div class="summary-line"><span>'+ (isDelivery?"Delivery fee":"Pickup fee")+'</span><b>'+price(info.deliveryFee)+'</b></div><div class="summary-line"><span>Service fee</span><b>'+price(info.serviceFee)+'</b></div><div class="summary-line total"><b>Total</b><b>'+price(info.total)+'</b></div><p class="help-line">All items and totals are fictitious. Payment remains unpaid until the sample vendor marks the order delivered.</p></aside></div>';
 }
-function renderCatalog(){
-  if(el("restaurantGrid"))el("restaurantGrid").innerHTML=restaurantCards();
-  if(el("foodGrid"))el("foodGrid").innerHTML=foodCards();
-  if(el("dishCount"))el("dishCount").textContent=db.menu.filter(f=>f.active).length+" dishes in our sample catalog";
+function orderCard(o){
+ const r=store(o.restaurantId);
+ return '<article class="panel order-card"><div class="order-header"><div><strong>'+h(o.id)+'</strong><p>'+h(r?.name)+' · '+fmt(o.createdAt)+'</p></div>'+badge(o.status)+'</div><p>'+o.items.map(i=>h(i.qty+" × "+i.name)).join(" · ")+'</p><div class="progress-track">'+C.FLOW.map(st=>'<span class="'+(C.FLOW.indexOf(st)<=C.FLOW.indexOf(o.status)?"done":"")+'"></span>').join("")+'</div><div class="order-actions"><span><strong>'+price(o.total)+'</strong><small>'+h(o.fulfilment)+' · '+h(o.paymentStatus)+'</small></span><a href="/customer/orders/'+h(o.id)+'" data-link="/customer/orders/'+h(o.id)+'" class="button outline">View details →</a></div></article>';
 }
-function explore(){
-  const categories=["All","Burgers","Pizza","Pasta","Sides","Drinks","Rice bowls"];
-  return header("Explore food","Find something good. All restaurants and prices below are fictional.",'<div class="search"><span>⌕</span><input id="searchInput" value="'+esc(search)+'" placeholder="Search dishes or restaurants..." aria-label="Search dishes"></div>'+cartButton())+
-    '<section class="panel hero-panel"><div class="hero-copy"><span class="eyebrow">GOOD FOOD, GOOD MOOD</span><h2>Delicious discoveries, <span class="highlight">one click away.</span></h2><p>Explore local favorites, build a cart and experience a complete simulated order.</p><button class="button primary" data-action="browse">Explore menu &nbsp;→</button></div><img class="hero-image" src="'+IMAGES.hero+'" alt="Fresh burger and fries"></section>'+
-    '<section><div class="section-heading"><div><h2>Featured restaurants</h2><p>Sample partner listings</p></div><span class="help-line">Only approved example restaurants appear here</span></div><div class="restaurant-grid" id="restaurantGrid">'+restaurantCards()+'</div></section>'+
-    '<section id="menuSection"><div class="section-heading"><div><h2>What are you craving?</h2><p id="dishCount">Explore the sample menu</p></div></div><div class="filters" id="filterChips">'+categories.map(c=>'<button class="chip '+(c===category?'active':'')+'" data-action="category" data-category="'+esc(c)+'">'+esc(c)+'</button>').join("")+'</div><div class="food-grid" id="foodGrid">'+foodCards()+'</div></section>';
+function customerOrders(){
+ const orders=state.orders.filter(o=>o.customerId===session.id).slice().reverse();
+ return title("CUSTOMER / ORDERS","Your order history","Every order appears here, including live changes made by the demo vendor.",btn("New order +","shop",null,"primary"))+
+ '<div class="toolbar filters">'+["All","Active","Completed","Cancelled"].map(v=>'<button class="chip '+(orderFilter===v?"active":"")+'" data-act="order-filter" data-id="'+v+'">'+v+'</button>').join("")+'</div><div class="orders-list">'+(orders.filter(o=>orderFilter==="All"||orderFilter==="Active"&&!C.DONE.includes(o.status)||orderFilter==="Completed"&&o.status==="Delivered"||orderFilter==="Cancelled"&&["Cancelled","Rejected"].includes(o.status)).map(orderCard).join("")||empty("📦","No matching orders","Try a different filter or place an order.",btn("Explore food","shop",null,"primary")))+'</div>';
 }
-function renderCart(){
-  const lines=db.cart.map(item=>({item,f:food(item.id)})).filter(x=>x.f);
-  const wrap=el("cartContent");
-  if(!lines.length){wrap.innerHTML='<div class="blank"><div class="blank-emoji">🛒</div><h3>Your cart is empty</h3><p>Add something tasty to begin a demo order.</p><button class="button primary" data-action="continue">Explore dishes</button></div>';return;}
-  const rest=restaurant(lines[0].f.restaurantId);
-  wrap.innerHTML='<p class="subtext">Ordering from '+esc(rest?rest.name:"Demo restaurant")+'</p><div class="cart-items">'+lines.map(x=>'<div class="cart-product"><img src="'+esc(x.f.image)+'" alt=""><div class="body"><h3>'+esc(x.f.name)+'</h3><p>'+money(x.f.price)+' each</p><div class="qty-stepper"><button type="button" aria-label="Decrease quantity" data-action="qty" data-id="'+x.f.id+'" data-delta="-1">−</button><b>'+x.item.qty+'</b><button type="button" aria-label="Increase quantity" data-action="qty" data-id="'+x.f.id+'" data-delta="1">+</button></div></div><strong>'+money(x.f.price*x.item.qty)+'</strong></div>').join("")+'</div><div class="cart-total"><div class="summary-line"><span>Items ('+cartCount()+')</span><strong>'+money(cartTotal())+'</strong></div><div class="summary-line"><span>Delivery fee</span><span>Calculated at checkout · demo</span></div><div class="summary-line total"><strong>Demo subtotal</strong><strong>'+money(cartTotal())+'</strong></div><div class="notice warning">Simulated checkout — no real order or payment will be made.</div><button class="button primary wide" data-action="checkout">Continue to checkout <span>→</span></button></div>';
+function orderDetail(id){
+ let o;try{o=C.ownOrder(state,session,id);}catch(_){return empty("🔎","Order not found","Only your own orders are visible.");}
+ const idx=C.FLOW.indexOf(o.status);
+ const isDone=C.DONE.includes(o.status);
+ return title("CUSTOMER / ORDER DETAILS","Order "+o.id,"Placed "+fmt(o.createdAt),btn("← All orders","go-orders",null))+
+ '<div class="two-col"><div class="panel form-panel"><div class="order-header"><h3>Order progress</h3>'+badge(o.status)+'</div><div class="timeline">'+o.history.map(e=>'<div class="timeline-item"><span class="timeline-dot"></span><div><strong>'+h(e.status)+'</strong><small>'+fmt(e.at)+'</small>'+(e.reason?'<p>'+h(e.reason)+'</p>':"")+'</div></div>').join("")+'</div>'+
+ (o.cancelRequested?'<div class="notice warning">Cancellation requested. The vendor can approve or decline it.</div>':"")+
+ (!isDone&&!o.cancelRequested?btn("Request cancellation","cancel",o.id,"danger"):"")+
+ (o.status==="Delivered"?'<div class="rating-section"><h3>How was your order?</h3><p class="subtext">Leave a demo rating for the completed order.</p><div class="stars">'+[1,2,3,4,5].map(n=>'<button type="button" data-act="rate" data-id="'+o.id+'" data-rating="'+n+'" aria-label="Rate '+n+' stars" class="'+(o.rating&&n<=o.rating?"lit":"")+'">★</button>').join("")+'</div></div>':"")+
+ '</div><aside class="panel order-summary"><h3>Receipt · demo</h3><p class="subtext">'+h(store(o.restaurantId)?.name)+'</p><hr>'+o.items.map(x=>'<div class="summary-line"><span>'+x.qty+' × '+h(x.name)+'</span><b>'+price(x.price*x.qty)+'</b></div>').join("")+'<hr><div class="summary-line"><span>Subtotal</span><b>'+price(o.subtotal)+'</b></div><div class="summary-line"><span>Delivery</span><b>'+price(o.deliveryFee)+'</b></div><div class="summary-line"><span>Service fee</span><b>'+price(o.serviceFee)+'</b></div><div class="summary-line total"><b>Total</b><b>'+price(o.total)+'</b></div><div class="order-meta"><b>Fulfilment</b><span>'+h(o.fulfilment)+'</span><b>Payment</b><span>'+h(o.payment)+' · '+h(o.paymentStatus)+'</span><b>Address / pickup point</b><span>'+h(o.address)+'</span><b>Instructions</b><span>'+h(o.notes||"None")+'</span></div>'+btn("↻ Reorder these items","reorder",o.id,"wide")+'</aside></div>';
 }
-function checkout(){
-  if(!db.cart.length){toast("Add something to your cart first.");return;}
-  if(role!=="customer"){openLogin("customer","/");return;}
-  closeDialog("cartDialog");
-  const rest=restaurant(food(db.cart[0].id).restaurantId);
-  el("checkoutSummary").innerHTML='<p class="subtext">Restaurant: '+esc(rest?rest.name:"Demo restaurant")+'</p><div class="summary-line"><span>'+cartCount()+' item(s)</span><strong>'+money(cartTotal())+'</strong></div><div class="summary-line"><span>Delivery charge (demo)</span><strong>₱0</strong></div><div class="summary-line total"><strong>Demo total</strong><strong>'+money(cartTotal())+'</strong></div>';
-  el("checkoutAddress").value="101 Sample Street, Manila";
-  showDialog("checkoutDialog");
+function customerProfile(){
+ const a=C.account(state,"customer");
+ return title("CUSTOMER / ACCOUNT","Your profile","Manage the fictional delivery contact details used by the demo.")+
+ '<div class="settings-grid"><form id="profileForm" class="panel form-panel"><h3>Contact & delivery</h3><label class="form-label">Full name<input name="name" value="'+h(a.name)+'" required maxlength="60"></label><label class="form-label">Email<input value="'+h(a.email)+'" disabled></label><label class="form-label">Phone<input name="phone" value="'+h(a.phone)+'" maxlength="30"></label><label class="form-label">Default sample address<textarea name="address" maxlength="160" rows="3">'+h(a.address)+'</textarea></label><button type="submit" class="button primary">Save profile</button></form><div class="panel form-panel"><h3>Account information</h3><p>Role: <strong>Customer</strong></p><p>This sample account can be disabled or re-enabled from the administrator workspace.</p><div class="notice">Changes are stored locally in this browser. No private information should be entered.</div></div></div>';
 }
-function orderItems(o){return o.items.map(x=>{const f=food(x.id);return (f?esc(f.name):"Item")+' × '+x.qty;}).join(", ");}
-function dateLabel(iso){const d=new Date(iso);return Number.isNaN(d.getTime())?"Demo date":d.toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"});}
-function orders(){
-  return header("Your orders","Follow and review fictional orders placed in this browser.",'<button class="button" data-route="/">← Browse menu</button>')+
-  '<div class="stack">'+(db.orders.length?db.orders.slice().reverse().map(o=>{
-    const steps=["Placed","Preparing","Ready","Delivered"];const index=steps.indexOf(o.status);
-    const r=restaurant(o.restaurantId);
-    return '<article class="panel order-card"><div class="order-header"><h3>Order #'+esc(o.id)+'</h3>'+badge(o.cancelRequested?"Cancellation requested":o.status)+'</div><p>'+esc(r?r.name:"Demo restaurant")+' · '+dateLabel(o.placedAt)+'</p><p>'+orderItems(o)+'</p><div class="order-progress">'+steps.map((s,i)=>'<div title="'+s+'" class="progress-step '+(index>=i?'done':'')+'"></div>').join("")+'</div><div class="order-actions"><div><strong>'+money(o.total)+'</strong><div class="help-line">'+esc(o.payment)+'</div></div>'+(o.status!=="Delivered"&&!o.cancelRequested?'<button class="button small" data-action="cancel-order" data-id="'+esc(o.id)+'">Request cancellation</button>':'<span class="help-line">'+(o.cancelRequested?"Awaiting restaurant review":"Completed demo order")+'</span>')+'</div></article>';
-  }).join(""):'<div class="panel blank"><div class="blank-emoji">📦</div><h3>No orders yet</h3><p>Explore the menu and place a simulated order.</p><button class="button primary" data-route="/">Browse food</button></div>')+'</div>';
+function vendorDashboard(){
+ const r=ownStore(),orders=state.orders.filter(o=>o.restaurantId===r?.id),open=orders.filter(o=>!C.DONE.includes(o.status)),sales=orders.filter(o=>o.status==="Delivered").reduce((n,o)=>n+o.subtotal,0);
+ return title("VENDOR / OVERVIEW","Welcome back, "+session.name.split(" ")[0],"Here's what's happening at "+(r?.name||"your restaurant")+".",btn("Manage orders →","vendor-orders",null,"primary"))+
+ '<div class="notice '+(!r?.open?"warning":"")+'"><b>Store is '+(r?.open?"accepting orders":"temporarily closed")+'.</b> '+(r?.open?"Customers can view and order your available dishes.":"Reopen it in Restaurant setup.")+' '+btn("Store settings","vendor-settings",null,"button-sm")+'</div>'+
+ '<div class="stats-row">'+metric("Incoming orders",String(orders.filter(o=>o.status==="Placed").length),"Awaiting acceptance","▤")+metric("In progress",String(open.filter(o=>o.status!=="Placed").length),"Prepare and dispatch","◷")+metric("Demo sales",price(sales),"Delivered subtotal","₱")+metric("Menu items",String(state.menu.filter(f=>f.restaurantId===r?.id).length),"Inventory items","☷")+'</div>'+
+ panelHeading("Order queue","Prioritize new and in-progress orders")+'<div class="panel table-wrap">'+vendorTable(open.slice().reverse().slice(0,7))+'</div>'+
+ '<div class="two-col dashboard-bottom"><section><div class="section-heading"><div><h2>Menu availability</h2><p>Stock and visibility at a glance</p></div>'+btn("Open menu →","vendor-menu",null,"button-sm")+'</div><div class="panel compact-list">'+state.menu.filter(f=>f.restaurantId===r?.id).slice(0,5).map(f=>'<div class="list-row"><div class="item-cell"><img src="'+h(f.image)+'" alt=""><div><b>'+h(f.name)+'</b><small>'+h(f.category)+'</small></div></div><span class="stock-tag">'+f.stock+' left</span></div>').join("")+'</div></section><section>'+panelHeading("Store snapshot","Adjust working hours in settings")+'<div class="panel form-panel"><div class="summary-line"><span>Store status</span>'+badge(r?.open?"Open":"Closed")+'</div><div class="summary-line"><span>Opening hours</span><b>'+h(r?.opening)+' – '+h(r?.closing)+'</b></div><div class="summary-line"><span>Preparation time</span><b>'+r?.prep+' min</b></div><div class="summary-line"><span>Fulfilment</span><b>'+(r?.delivery?"Delivery ":"")+(r?.pickup?"Pickup":"")+'</b></div>'+btn("Configure store →","vendor-settings",null,"outline wide")+'</div></section></div>';
 }
-function stats(){
-  const earned=db.orders.filter(x=>x.restaurantId==="r1"&&x.status==="Delivered").reduce((s,x)=>s+x.total,0);
-  const active=db.orders.filter(x=>x.restaurantId==="r1"&&x.status!=="Delivered"&&x.status!=="Cancelled").length;
-  return '<div class="stats-row"><div class="panel metric"><span class="metric-label">▤ &nbsp; Sample orders</span><strong>'+db.orders.filter(x=>x.restaurantId==="r1").length+'</strong><small>Local demo data</small></div><div class="panel metric"><span class="metric-label">◈ &nbsp; Active orders</span><strong>'+active+'</strong><small>Needs attention</small></div><div class="panel metric"><span class="metric-label">☰ &nbsp; Menu items</span><strong>'+db.menu.filter(x=>x.restaurantId==="r1").length+'</strong><small>Includes unavailable</small></div><div class="panel metric"><span class="metric-label">₱ &nbsp; Delivered sales</span><strong>'+money(earned)+'</strong><small>Fictional revenue</small></div></div>';
+function vendorTable(orders){
+ if(!orders.length)return '<div class="blank"><div class="blank-emoji">📦</div><h3>No orders in this view</h3><p>Customer demo orders will appear here.</p></div>';
+ return '<table class="data-table"><thead><tr><th>Order</th><th>Items</th><th>Fulfilment</th><th>Total</th><th>Status</th><th></th></tr></thead><tbody>'+orders.map(o=>'<tr><td><b>'+h(o.id)+'</b><small>'+fmt(o.createdAt)+'</small></td><td>'+o.items.map(i=>h(i.qty+" × "+i.name)).join(", ")+'</td><td>'+h(o.fulfilment)+'</td><td><b>'+price(o.total)+'</b></td><td>'+badge(o.status)+(o.cancelRequested?'<small class="danger-text">Cancellation requested</small>':"")+'</td><td><a class="button small" data-link="/vendor/orders/'+h(o.id)+'" href="/vendor/orders/'+h(o.id)+'">Manage →</a></td></tr>').join("")+'</tbody></table>';
 }
-function business(){
-  const mine=db.menu.filter(x=>x.restaurantId==="r1");
-  const businessOrders=db.orders.filter(o=>o.restaurantId==="r1").slice().reverse();
-  return header("Restaurant overview","Manage the sample restaurant: The Burger Corner.",'<button class="button primary" data-action="new-item">+ Add menu item</button>')+
-    '<div class="notice">Restaurant owner demo: menu changes and order status updates are saved only in your own browser.</div>'+stats()+
-    '<div class="section-heading"><div><h2>Incoming orders</h2><p>Update statuses to see the customer experience change</p></div></div><div class="panel table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
-    (businessOrders.length?businessOrders.map(o=>'<tr><td><strong>'+esc(o.id)+'</strong><br><span class="muted">'+dateLabel(o.placedAt)+'</span></td><td>'+orderItems(o)+'</td><td>'+money(o.total)+'</td><td>'+badge(o.status)+(o.cancelRequested?'<br><span class="help-line">Cancellation requested</span>':'')+'</td><td>'+(({"Placed":"Preparing","Preparing":"Ready","Ready":"Delivered"})[o.status]?'<button class="button soft small" data-action="advance" data-id="'+esc(o.id)+'">Mark '+({"Placed":"Preparing","Preparing":"Ready","Ready":"Delivered"})[o.status]+'</button>':'<span class="help-line">Done</span>')+(o.cancelRequested?'<br><button class="button danger small" data-action="approve-cancel" data-id="'+esc(o.id)+'">Approve cancel</button>':'')+'</td></tr>').join(""):'<tr><td colspan="5">No sample orders yet</td></tr>')+
-    '</tbody></table></div><div class="section-heading"><div><h2>Menu management</h2><p>Toggle item availability or edit pricing</p></div></div><div class="panel table-wrap"><table class="data-table"><thead><tr><th>Item</th><th>Category</th><th>Price</th><th>Availability</th><th>Actions</th></tr></thead><tbody>'+
-    mine.map(f=>'<tr><td><div class="item-cell"><img src="'+esc(f.image)+'" alt=""><div><strong>'+esc(f.name)+'</strong><small>Item #'+f.id+'</small></div></div></td><td>'+esc(f.category)+'</td><td>'+money(f.price)+'</td><td>'+badge(f.active?"Active":"Unavailable")+'</td><td><button class="button small" data-action="edit-item" data-id="'+f.id+'">Edit</button> <button class="button soft small" data-action="toggle-item" data-id="'+f.id+'">'+(f.active?"Hide":"Show")+'</button></td></tr>').join("")+
-    '</tbody></table></div>';
+function vendorOrders(){
+ const r=ownStore(),orders=state.orders.filter(o=>o.restaurantId===r?.id).slice().reverse();
+ const filter=orderFilter;
+ const filtered=orders.filter(o=>filter==="All"||filter==="New"&&o.status==="Placed"||filter==="In progress"&&!C.DONE.includes(o.status)&&o.status!=="Placed"||filter==="Completed"&&C.DONE.includes(o.status)||filter==="Cancellations"&&o.cancelRequested);
+ return title("VENDOR / FULFILMENT","Orders & fulfilment","Accept, reject, prepare, dispatch and complete each fictional order.",btn("Refresh","refresh",null))+
+ '<div class="filters toolbar">'+["All","New","In progress","Completed","Cancellations"].map(x=>'<button class="chip '+(x===filter?"active":"")+'" data-act="order-filter" data-id="'+h(x)+'">'+h(x)+' '+(x==="Cancellations"?'('+orders.filter(o=>o.cancelRequested).length+')':"")+'</button>').join("")+'</div><div class="panel table-wrap">'+vendorTable(filtered)+'</div>';
 }
-function admin(){
-  const pending=db.restaurants.filter(x=>x.status==="Pending").length;
-  return header("Platform overview","Review fictional restaurant partners and platform activity.",'<button class="button" data-action="reset-confirm">↻ Reset demo</button>')+
-    '<div class="notice">Administrator demo only. Approvals do not affect real businesses or accounts.</div>'+
-    '<div class="stats-row"><div class="panel metric"><span class="metric-label">▦ &nbsp; Restaurants</span><strong>'+db.restaurants.length+'</strong><small>Demo listings</small></div><div class="panel metric"><span class="metric-label">◷ &nbsp; Pending approval</span><strong>'+pending+'</strong><small>Review required</small></div><div class="panel metric"><span class="metric-label">▤ &nbsp; Total orders</span><strong>'+db.orders.length+'</strong><small>Fictional orders</small></div><div class="panel metric"><span class="metric-label">☰ &nbsp; Menu items</span><strong>'+db.menu.length+'</strong><small>Across restaurants</small></div></div>'+
-    '<div class="section-heading"><div><h2>Restaurant approvals</h2><p>Approve or decline pending example partners</p></div></div><div class="panel table-wrap"><table class="data-table"><thead><tr><th>Restaurant</th><th>Category</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
-    db.restaurants.map(r=>'<tr><td><div class="item-cell"><img src="'+esc(r.image)+'" alt=""><div><strong>'+esc(r.name)+'</strong><small>Partner '+esc(r.id.toUpperCase())+'</small></div></div></td><td>'+esc(r.category)+'</td><td>'+badge(r.status)+'</td><td>'+(r.status!=="Active"?'<button class="button soft small" data-action="approval" data-status="Active" data-id="'+esc(r.id)+'">Approve</button> ':'')+(r.status!=="Declined"?'<button class="button danger small" data-action="approval" data-status="Declined" data-id="'+esc(r.id)+'">Decline</button>':'')+'</td></tr>').join("")+'</tbody></table></div>'+
-    '<div class="section-heading"><div><h2>Recent platform orders</h2><p>Cross-restaurant sample activity</p></div></div><div class="panel table-wrap"><table class="data-table"><thead><tr><th>Order</th><th>Restaurant</th><th>Total</th><th>Status</th></tr></thead><tbody>'+
-    db.orders.slice().reverse().map(o=>'<tr><td><strong>'+esc(o.id)+'</strong></td><td>'+esc((restaurant(o.restaurantId)||{}).name||"Demo restaurant")+'</td><td>'+money(o.total)+'</td><td>'+badge(o.status)+'</td></tr>').join("")+'</tbody></table></div>';
+function vendorOrderDetail(id){
+ let o;try{o=C.vendorOrder(state,session,id);}catch(_){return empty("🔎","Order not found","This order does not belong to your restaurant.");}
+ let actions="";
+ const next={"Placed":"Accepted","Accepted":"Preparing","Preparing":"Ready","Ready":o.fulfilment==="Pickup"?"Delivered":"Out for delivery","Out for delivery":"Delivered"}[o.status];
+ if(o.cancelRequested)actions='<div class="notice warning"><b>Cancellation requested by customer</b><p>Choose whether to approve the cancellation.</p>'+btn("Approve cancellation","advance",o.id,"danger",'data-status="Cancelled"')+" "+btn("Decline request","decline-cancel",o.id)+'</div>';
+ else if(next)actions=btn("Mark "+next+" →","advance",o.id,"primary",'data-status="'+h(next)+'"')+(o.status==="Placed"?btn("Reject order","reject",o.id,"danger"):"");
+ return title("VENDOR / ORDER DETAILS","Order "+o.id,"Received "+fmt(o.createdAt),btn("← Order queue","vendor-orders",null))+
+ '<div class="two-col"><section class="panel form-panel"><div class="order-header"><h3>Fulfilment status</h3>'+badge(o.status)+'</div><div class="timeline">'+o.history.map(x=>'<div class="timeline-item"><span class="timeline-dot"></span><div><b>'+h(x.status)+'</b><small>'+fmt(x.at)+'</small>'+(x.reason?'<p>'+h(x.reason)+'</p>':"")+'</div></div>').join("")+'</div><div class="fulfil-actions">'+actions+'</div><div class="notice">Only this restaurant's orders can be managed from the vendor workspace. Updates are immediately reflected in the customer demo.</div></section><aside class="panel order-summary"><h3>Order details</h3><p class="subtext">'+h(o.fulfilment)+' · '+h(o.payment)+'</p><hr>'+o.items.map(x=>'<div class="summary-line"><span>'+x.qty+' × '+h(x.name)+'</span><b>'+price(x.price*x.qty)+'</b></div>').join("")+'<hr><div class="summary-line"><span>Subtotal</span><b>'+price(o.subtotal)+'</b></div><div class="summary-line"><span>Delivery fee</span><b>'+price(o.deliveryFee)+'</b></div><div class="summary-line total"><b>Customer total</b><b>'+price(o.total)+'</b></div><div class="order-meta"><b>Payment</b><span>'+h(o.paymentStatus)+' · '+h(o.payment)+'</span><b>Destination</b><span>'+h(o.address)+'</span><b>Customer notes</b><span>'+h(o.notes||"No notes")+'</span></div></aside></div>';
 }
-function editor(id){
-  const item=id?food(id):null;
-  const categories=["Burgers","Sides","Drinks","Pizza","Pasta","Rice bowls"];
-  el("detailContent").innerHTML='<form id="productForm"><div class="dialog-heading"><div><span class="eyebrow">RESTAURANT WORKSPACE</span><h2>'+(item?"Edit menu item":"Add menu item")+'</h2></div><button class="icon-button" type="button" data-close="detailDialog" aria-label="Close">×</button></div><p class="subtext">Demo changes apply only to your browser.</p><input type="hidden" name="id" value="'+(item?item.id:"")+'"><label class="form-label">Item name<input name="name" maxlength="70" value="'+esc(item?item.name:"")+'" required></label><div class="field-row"><label>Category<select name="category">'+categories.map(c=>'<option value="'+esc(c)+'" '+(item&&c===item.category?'selected':'')+'>'+esc(c)+'</option>').join("")+'</select></label><label>Price (PHP)<input type="number" name="price" min="1" max="100000" step="1" value="'+(item?item.price:150)+'" required></label></div><label class="form-label">Description<input name="description" maxlength="160" value="'+esc(item?item.description:"")+'" required></label><label class="form-label"><input name="active" type="checkbox" '+(!item||item.active?'checked':'')+' style="width:auto;display:inline;min-height:0"> &nbsp;Available to customers</label><div class="notice">A default product image is used for new demo items; no uploads are stored.</div><button class="button primary wide" type="submit">Save sample item <span>→</span></button></form>';
-  showDialog("detailDialog");
+function vendorMenu(){
+ const r=ownStore(),foods=state.menu.filter(f=>f.restaurantId===r?.id);
+ return title("VENDOR / CATALOG","Menu & inventory","Manage categories, stock, item visibility and prices.",btn("+ Add menu item","edit-item",null,"primary"))+
+ '<div class="panel table-wrap"><table class="data-table"><thead><tr><th>Menu item</th><th>Category</th><th>Price</th><th>Stock</th><th>Visibility</th><th>Actions</th></tr></thead><tbody>'+foods.map(f=>'<tr><td><div class="item-cell"><img src="'+h(f.image)+'" alt=""><div><b>'+h(f.name)+'</b><small>'+h(f.description.slice(0,55))+'</small></div></div></td><td>'+h(f.category)+'</td><td><b>'+price(f.price)+'</b></td><td><span class="stock-tag '+(f.stock<=5?"low-stock":"")+'">'+f.stock+' in stock</span></td><td>'+badge(f.active?"Active":"Hidden")+'</td><td>'+btn("Edit","edit-item",f.id,"small")+" "+btn(f.active?"Hide":"Show","toggle-item",f.id,"soft small")+'</td></tr>').join("")+'</tbody></table></div>';
+}
+function vendorSettings(){
+ const r=ownStore();
+ return title("VENDOR / RESTAURANT","Restaurant setup","Update your storefront, operating hours and ordering preferences.")+
+ '<form id="storeForm" class="settings-grid"><div class="panel form-panel"><h3>Restaurant identity</h3><label class="form-label">Store name<input name="name" value="'+h(r.name)+'" required maxlength="65"></label><label class="form-label">Description<textarea name="description" required minlength="8" maxlength="250" rows="3">'+h(r.description)+'</textarea></label><label class="form-label">Fictional address<input name="address" value="'+h(r.address)+'" maxlength="160"></label><label class="form-label">Demo contact number<input name="phone" value="'+h(r.phone)+'" maxlength="30"></label></div><div class="panel form-panel"><h3>Operating setup</h3><div class="field-row"><label class="form-label">Opens<input type="time" name="opening" value="'+h(r.opening)+'"></label><label class="form-label">Closes<input type="time" name="closing" value="'+h(r.closing)+'"></label></div><label class="form-label">Average prep time (minutes)<input type="number" min="5" max="180" name="prep" value="'+r.prep+'"></label><label class="switch-label"><input name="open" type="checkbox" '+(r.open?"checked":"")+'> Accept new orders</label><label class="switch-label"><input name="delivery" type="checkbox" '+(r.delivery?"checked":"")+'> Offer delivery</label><label class="switch-label"><input name="pickup" type="checkbox" '+(r.pickup?"checked":"")+'> Offer pickup</label><div class="notice">Closing the store hides its products from customer ordering, but keeps existing orders manageable.</div><button type="submit" class="button primary wide">Save restaurant setup →</button></div></form>';
+}
+function vendorReports(){
+ const r=ownStore(),orders=state.orders.filter(o=>o.restaurantId===r.id),completed=orders.filter(o=>o.status==="Delivered");
+ const gross=completed.reduce((v,o)=>v+o.subtotal,0),fees=round(gross*state.settings.commission/100),net=round(gross-fees);
+ return title("VENDOR / ANALYTICS","Sales report","Illustrative figures derived from completed sample orders.",btn("Export CSV","export-vendor",null))+
+ '<div class="stats-row">'+metric("Completed orders",completed.length,"Illustrative totals","▤")+metric("Food revenue",price(gross),"Excludes delivery fees","₱")+metric("Platform commission",price(fees),state.settings.commission+"% configured","◈")+metric("Vendor proceeds",price(net),"Revenue less commission","↗")+'</div>'+
+ panelHeading("Completed order ledger","Download the sample records using Export CSV")+'<div class="panel table-wrap">'+vendorTable(completed.slice().reverse())+'</div>';
+}
+function round(n){return Math.round(n*100)/100;}
+function adminDashboard(){
+ const delivered=state.orders.filter(o=>o.status==="Delivered"),rev=delivered.reduce((n,o)=>n+o.subtotal,0);
+ return title("ADMIN / DASHBOARD","Platform overview","Configure the example marketplace and approve vendor applications.",btn("Platform setup →","admin-settings",null,"primary"))+
+ '<div class="stats-row">'+metric("Restaurants",state.restaurants.length,"In this demo","▦")+metric("Pending applications",state.restaurants.filter(r=>r.status==="Pending").length,"Awaiting review","◷")+metric("Customer orders",state.orders.length,"Across sample stores","▤")+metric("Demo GMV",price(rev),"Delivered food subtotals","₱")+'</div>'+
+ '<div class="dashboard-bottom two-col"><section>'+panelHeading("Pending vendor applications","Approve before they appear to customers")+'<div class="panel compact-list">'+(state.restaurants.filter(x=>x.status==="Pending").map(r=>'<div class="list-row"><div class="item-cell"><img src="'+h(r.image)+'" alt=""><div><b>'+h(r.name)+'</b><small>'+h(r.category)+'</small></div></div>'+btn("Review →","admin-vendors",null,"small")+'</div>').join("")||empty("✓","All caught up","No pending restaurant applications."))+'</div></section><section>'+panelHeading("Recent activity","Changes across the browser demo")+'<div class="panel activity-feed">'+state.activity.slice(0,6).map(a=>'<div class="activity-row"><span class="activity-dot"></span><div><b>'+h(a.message)+'</b><small>'+fmt(a.at)+'</small></div></div>').join("")+'</div></section></div>';
+}
+function adminVendors(){
+ return title("ADMIN / RESTAURANTS","Restaurant approvals","Approve, suspend or decline fictional restaurant listings.",btn("+ New sample applicant","new-restaurant",null,"primary"))+
+ '<div class="panel table-wrap"><table class="data-table"><thead><tr><th>Restaurant</th><th>Category</th><th>Status</th><th>Hours</th><th>Action</th></tr></thead><tbody>'+state.restaurants.map(r=>'<tr><td><div class="item-cell"><img src="'+h(r.image)+'" alt=""><div><b>'+h(r.name)+'</b><small>'+h(r.description.slice(0,65))+'</small></div></div></td><td>'+h(r.category)+'</td><td>'+badge(r.status)+'</td><td>'+h(r.opening)+'–'+h(r.closing)+'</td><td><div class="row-buttons">'+(r.status!=="Approved"?btn("Approve","restaurant-status",r.id,"soft small",'data-status="Approved"'):"")+(r.status!=="Suspended"?btn("Suspend","restaurant-status",r.id,"danger small",'data-status="Suspended"'):"")+(r.status!=="Declined"?btn("Decline","restaurant-status",r.id,"small",'data-status="Declined"'):"")+'</div></td></tr>').join("")+'</tbody></table></div><div class="notice">The sample vendor account manages The Burger Corner. Additional applications are fictional listings only, not new login identities.</div>';
+}
+function adminUsers(){
+ return title("ADMIN / ACCOUNTS","Accounts & access","Enable or disable the sample customer and vendor account. The admin remains accessible.")+
+ '<div class="panel table-wrap"><table class="data-table"><thead><tr><th>Account</th><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>'+state.accounts.map(a=>'<tr><td><b>'+h(a.name)+'</b></td><td>'+h(a.email)+'</td><td>'+badge(a.role)+'</td><td>'+badge(a.enabled?"Active":"Disabled")+'</td><td>'+(a.role==="admin"?"<span class='help-line'>Protected demo admin</span>":btn(a.enabled?"Disable":"Enable","enable-account",a.id,a.enabled?"danger small":"soft small"))+'</td></tr>').join("")+'</tbody></table></div><div class="notice warning">Account access is simulated in browser storage. Do not use these demo passwords or role checks to protect real user data.</div>';
+}
+function adminSettings(){
+ const x=state.settings;
+ return title("ADMIN / CONFIGURATION","Platform setup","Configure branding, delivery charges, marketplace operations and contact details.")+
+ '<form id="platformForm" class="settings-grid"><div class="panel form-panel"><h3>Brand & communication</h3><label class="form-label">Platform name<input name="name" value="'+h(x.name)+'" maxlength="80" required></label><label class="form-label">Tagline<input name="tagline" value="'+h(x.tagline)+'" maxlength="100"></label><label class="form-label">Homepage announcement<textarea name="announcement" maxlength="180" rows="3">'+h(x.announcement)+'</textarea></label><label class="form-label">Support email (example)<input type="email" name="supportEmail" value="'+h(x.supportEmail)+'"></label><h3 class="section-gap">Pricing rules</h3><div class="field-row"><label class="form-label">Delivery fee (₱)<input type="number" min="0" max="5000" name="deliveryFee" value="'+x.deliveryFee+'" step="0.01"></label><label class="form-label">Service fee (₱)<input type="number" min="0" max="5000" name="serviceFee" value="'+x.serviceFee+'" step="0.01"></label></div><div class="field-row"><label class="form-label">Minimum food subtotal (₱)<input type="number" min="0" max="5000" name="minOrder" value="'+x.minOrder+'" step="0.01"></label><label class="form-label">Vendor commission (%)<input type="number" min="0" max="100" name="commission" value="'+x.commission+'" step="0.1"></label></div></div><div class="panel form-panel"><h3>Marketplace operations</h3><label class="switch-label"><input type="checkbox" name="orderingEnabled" '+(x.orderingEnabled?"checked":"")+'> Enable customer checkout</label><label class="switch-label"><input type="checkbox" name="pickupEnabled" '+(x.pickupEnabled?"checked":"")+'> Allow pickup fulfilment</label><label class="switch-label"><input type="checkbox" name="autoApprove" '+(x.autoApprove?"checked":"")+'> Auto-approve new applicants (demo setting)</label><p class="help-line">Vendor approvals can still be reviewed manually from the Restaurants tab.</p><div class="notice">Editing these settings changes the customer checkout and vendor revenue calculations throughout this browser session.</div><button type="submit" class="button primary wide">Save platform configuration →</button><div class="section-gap"><h3>Demo maintenance</h3><p>Restore original restaurants, orders, menu and settings for your next showcase.</p>'+btn("Reset all sample data","reset",null,"danger")+'</div></div></form>';
+}
+function renderPage(p){
+ if(session.role==="customer"){
+  if(p==="/customer"||p==="/customer/")return customerHome();
+  if(p==="/customer/checkout")return customerCheckout();
+  if(p==="/customer/orders")return customerOrders();
+  if(p.startsWith("/customer/orders/"))return orderDetail(decodeURIComponent(p.split("/").pop()));
+  if(p==="/customer/profile")return customerProfile();
+ }
+ if(session.role==="vendor"){
+  if(p==="/vendor")return vendorDashboard();
+  if(p==="/vendor/orders")return vendorOrders();
+  if(p.startsWith("/vendor/orders/"))return vendorOrderDetail(decodeURIComponent(p.split("/").pop()));
+  if(p==="/vendor/menu")return vendorMenu();
+  if(p==="/vendor/settings")return vendorSettings();
+  if(p==="/vendor/reports")return vendorReports();
+ }
+ if(session.role==="admin"){
+  if(p==="/admin")return adminDashboard();
+  if(p==="/admin/vendors")return adminVendors();
+  if(p==="/admin/users")return adminUsers();
+  if(p==="/admin/settings")return adminSettings();
+ }
+ return empty("◈","Page unavailable","Return to the main dashboard.",btn("Back home","home",null,"primary"));
 }
 function render(){
-  const route=currentRoute();
-  renderShell(route);
-  if(route==="/business"&&role!=="business"){app.innerHTML=header("Restaurant workspace","Sign in using the included restaurant-owner demo account.",'<button class="button primary" data-action="business-login">Try restaurant demo →</button>')+'<div class="panel blank"><div class="blank-emoji">🏪</div><h3>Restaurant owner access</h3><p>This workspace is part of the simulated role-based demo.</p></div>';return;}
-  if(route==="/admin"&&role!=="admin"){app.innerHTML=header("Admin workspace","Sign in using the included administrator demo account.",'<button class="button primary" data-action="admin-login">Try admin demo →</button>')+'<div class="panel blank"><div class="blank-emoji">🛡️</div><h3>Admin access</h3><p>This workspace is part of the simulated role-based demo.</p></div>';return;}
-  if(route==="/orders"&&role!=="customer"){app.innerHTML=header("Your orders","Sign in using the included customer demo account.",'<button class="button primary" data-action="customer-login">Try customer demo →</button>')+'<div class="panel blank"><div class="blank-emoji">📦</div><h3>Demo customer account</h3><p>Use the sample credentials to see your orders.</p></div>';return;}
-  app.innerHTML=route==="/business"?business():route==="/admin"?admin():route==="/orders"?orders():explore();
+ syncSession();const p=path();
+ if(!session){root.innerHTML=loginScreen();if(p!=="/login")history.replaceState({},"","/login");document.title="Sign in · GetFoodie Demo";return;}
+ if(!p.startsWith("/"+session.role)){history.replaceState({},"",roleHome[session.role]);}
+ const current=path();root.innerHTML=shell(renderPage(current),current);
+ document.title=breadcrumb(current)+" · GetFoodie Demo";
 }
-document.addEventListener("click",event=>{
-  const close=event.target.closest("[data-close]");
-  if(close){closeDialog(close.dataset.close);return;}
-  const choice=event.target.closest("[data-role-choice]");
-  if(choice){selectRole(choice.dataset.roleChoice);return;}
-  const nav=event.target.closest("[data-route]");
-  if(nav){event.preventDefault();const path=nav.dataset.route;if(!authorize(path))return;navigate(path);return;}
-  const action=event.target.closest("[data-action]");
-  if(!action)return;
-  const cmd=action.dataset.action;const id=action.dataset.id;
-  if(cmd==="cart"){renderCart();showDialog("cartDialog");}
-  else if(cmd==="continue"){closeDialog("cartDialog");navigate("/");}
-  else if(cmd==="browse"){el("menuSection")?.scrollIntoView({behavior:"smooth"});}
-  else if(cmd==="category"){category=action.dataset.category;render();}
-  else if(cmd==="restaurant"){restaurantFilter=restaurantFilter===id?"All":id;render();el("menuSection")?.scrollIntoView({behavior:"smooth"});}
-  else if(cmd==="add"){
-    if(role!=="customer"){openLogin("customer","/");return;}
-    const item=food(id);if(!item||!item.active)return;
-    if(db.cart.length){const previous=food(db.cart[0].id);if(previous&&previous.restaurantId!==item.restaurantId){toast("Finish or clear your current restaurant's cart before switching.");renderCart();showDialog("cartDialog");return;}}
-    const found=db.cart.find(x=>x.id===item.id);if(found)found.qty=Math.min(20,found.qty+1);else db.cart.push({id:item.id,qty:1});
-    save();render();toast(item.name+" added to cart.");
-  }
-  else if(cmd==="qty"){
-    const found=db.cart.find(x=>x.id===Number(id));if(!found)return;
-    found.qty+=Number(action.dataset.delta);
-    if(found.qty<=0)db.cart=db.cart.filter(x=>x!==found);else found.qty=Math.min(found.qty,20);
-    save();renderCart();renderShell(currentRoute());if(currentRoute()==="/")render();
-  }
-  else if(cmd==="checkout")checkout();
-  else if(cmd==="cancel-order"){
-    const o=db.orders.find(x=>x.id===id);
-    if(o&&o.status!=="Delivered"){o.cancelRequested=true;save();render();toast("Demo cancellation request submitted.");}
-  }
-  else if(cmd==="new-item")editor();
-  else if(cmd==="edit-item")editor(id);
-  else if(cmd==="toggle-item"){
-    const item=food(id);if(item&&item.restaurantId==="r1"){item.active=!item.active;save();render();toast("Menu availability updated locally.");}
-  }
-  else if(cmd==="advance"){
-    const o=db.orders.find(x=>x.id===id&&x.restaurantId==="r1");
-    const next=({"Placed":"Preparing","Preparing":"Ready","Ready":"Delivered"})[o?.status];
-    if(o&&next){o.status=next;save();render();toast("Sample order marked "+next+".");}
-  }
-  else if(cmd==="approve-cancel"){
-    const o=db.orders.find(x=>x.id===id&&x.restaurantId==="r1");
-    if(o&&o.cancelRequested){o.status="Cancelled";o.cancelRequested=false;save();render();toast("Sample order cancellation approved.");}
-  }
-  else if(cmd==="approval"){
-    const r=restaurant(id),status=action.dataset.status;
-    if(r&&["Active","Declined"].includes(status)){r.status=status;save();render();toast("Sample restaurant "+status.toLowerCase()+".");}
-  }
-  else if(cmd==="reset-confirm")reset();
-  else if(cmd==="customer-login")openLogin("customer","/orders");
-  else if(cmd==="business-login")openLogin("business","/business");
-  else if(cmd==="admin-login")openLogin("admin","/admin");
-});
-document.addEventListener("input",event=>{
-  if(event.target.id==="searchInput"){search=event.target.value.trim();renderCatalog();}
-});
-document.addEventListener("submit",event=>{
-  if(event.target.id==="loginForm"){
-    event.preventDefault();
-    const acc=ACCOUNT_LIST.find(x=>x.role===selectedRole);
-    if(el("demoEmail").value.trim().toLowerCase()!==acc.email || el("demoPassword").value!==acc.password){el("loginError").textContent="Use the displayed demo credentials to continue.";return;}
-    role=selectedRole;sessionStorage.setItem(ROLE_KEY,role);
-    closeDialog("loginDialog");
-    const destination=afterLogin&&({"/":"customer","/orders":"customer","/business":"business","/admin":"admin"})[afterLogin]===role?afterLogin:acc.path;
-    afterLogin=null;navigate(destination);toast("Signed in to the "+acc.title.toLowerCase()+" demo.");
-  }
-  else if(event.target.id==="checkoutForm"){
-    event.preventDefault();
-    if(role!=="customer"||!db.cart.length){closeDialog("checkoutDialog");return;}
-    const address=el("checkoutAddress").value.trim();
-    if(!address){toast("Enter a sample delivery address.");return;}
-    const rest=food(db.cart[0].id);
-    const order={id:"GF-"+db.nextOrder++,restaurantId:rest.restaurantId,items:db.cart.map(x=>({id:x.id,qty:x.qty})),total:cartTotal(),status:"Placed",payment:el("checkoutPayment").value,address,placedAt:new Date().toISOString(),cancelRequested:false};
-    db.orders.push(order);db.cart=[];save();
-    closeDialog("checkoutDialog");navigate("/orders");toast("Demo order "+order.id+" placed — no real transaction.");
-  }
-  else if(event.target.id==="productForm"){
-    event.preventDefault();
-    if(role!=="business")return;
-    const fd=new FormData(event.target),name=String(fd.get("name")||"").trim(),description=String(fd.get("description")||"").trim(),price=Number(fd.get("price"));
-    if(!name||!description||!Number.isFinite(price)||price<=0||price>100000){toast("Check the item name, description and price.");return;}
-    const category=String(fd.get("category")||"Burgers"),active=fd.has("active"),id=Number(fd.get("id"));
-    const existing=id?food(id):null;
-    if(existing&&existing.restaurantId==="r1"){Object.assign(existing,{name,description,price,category,active});}
-    else if(!id){db.menu.push({id:db.nextItem++,restaurantId:"r1",name,description,price,category,active,image:IMAGES.burger});}
-    save();closeDialog("detailDialog");render();toast("Sample menu item saved.");
-  }
-});
-function reset(){
-  if(!confirm("Reset sample data and orders in this browser?"))return;
-  db=seed();save();category="All";search="";restaurantFilter="All";closeDialog("cartDialog");navigate("/");toast("Demo sample data restored.");
+function showModal(content){
+ const m=$("modal");m.innerHTML='<div class="dialog-pad">'+content+'</div>';
+ if(!m.open)m.showModal();
 }
-el("loginForm").addEventListener("reset",e=>e.preventDefault());
-el("accountButton").addEventListener("click",()=>openLogin(role==="guest"?"customer":role,null));
-el("demoInfo").addEventListener("click",()=>showDialog("infoDialog"));
-el("resetDemo").addEventListener("click",reset);
+function closeModal(){const m=$("modal");if(m.open)m.close();}
+function modalTitle(kicker,label){return '<div class="dialog-heading"><div><span class="eyebrow">'+h(kicker)+'</span><h2>'+h(label)+'</h2></div><button class="icon-button" data-act="close-modal" aria-label="Close" type="button">×</button></div>';}
+function openCart(){showModal(modalTitle("CUSTOMER / CART","Your basket")+'<div class="drawer-content">'+cartMarkup()+'</div>');}
+function openItemEditor(id){
+ const f=id?item(id):null,r=ownStore();if(f&&f.restaurantId!==r.id)throw Error("Not your item.");
+ const categories=[...new Set([...r.categories,"Burgers","Sides","Drinks"])];
+ showModal('<form id="itemForm">'+modalTitle("VENDOR / MENU",f?"Edit menu item":"Add menu item")+'<input type="hidden" name="id" value="'+(f?f.id:"")+'"><label class="form-label">Dish name<input name="name" required maxlength="75" value="'+h(f?.name||"")+'"></label><label class="form-label">Description<textarea name="description" maxlength="220" required rows="3">'+h(f?.description||"")+'</textarea></label><div class="field-row"><label class="form-label">Category<select name="category">'+categories.map(c=>'<option value="'+h(c)+'" '+(f?.category===c?"selected":"")+'>'+h(c)+'</option>').join("")+'</select></label><label class="form-label">Price (₱)<input type="number" name="price" min="1" max="20000" step="0.01" required value="'+(f?.price||"")+'"></label></div><label class="form-label">Quantity in stock<input name="stock" type="number" min="0" max="9999" required value="'+(f?.stock??20)+'"></label><label class="switch-label"><input type="checkbox" name="active" '+(!f||f.active?"checked":"")+'> Show in customer menu</label><div class="notice">Sample food photos are provided for the demo. Existing images are retained when editing.</div><button type="submit" class="button primary wide">Save menu item →</button></form>');
+}
+function askReject(id){
+ showModal('<form id="rejectForm">'+modalTitle("VENDOR / FULFILMENT","Reject order "+id)+'<input type="hidden" name="id" value="'+h(id)+'"><p class="subtext">Rejecting this order restores its sample stock. The customer will see the rejection.</p><label class="form-label">Reason<textarea name="reason" rows="3" maxlength="150" required placeholder="e.g. Item unavailable"></textarea></label><button type="submit" class="button danger wide">Reject this order →</button></form>');
+}
+function addApplicant(){
+ showModal('<form id="applicantForm">'+modalTitle("ADMIN / APPLICATIONS","Create a vendor application")+'<p class="subtext">Adds a fictional pending listing for administrator review.</p><label class="form-label">Restaurant name<input name="name" required minlength="3" maxlength="65" placeholder="Sample Kitchen"></label><label class="form-label">Category<input name="category" maxlength="60" value="Casual dining"></label><label class="form-label">Description<input name="description" maxlength="180" value="An example restaurant awaiting approval."></label><button type="submit" class="button primary wide">Create application →</button></form>');
+}
+function info(){
+ showModal(modalTitle("PORTFOLIO DEMO","How this demo works")+'<p class="subtext">GetFoodie is a practice and portfolio project, not a live delivery service. You can sign in as a sample customer, vendor, or administrator to walk through a complete fictional order life cycle.</p><div class="notice warning">Accounts, password checks, orders, status changes and settings are stored in your browser only. No real sign-in server, multi-user sync, food delivery, or financial transactions are connected.</div>'+btn("Got it","close-modal",null,"primary wide"));
+}
+function downloadCsv(rows){
+ const data=rows.map(r=>r.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
+ const blob=new Blob([data],{type:"text/csv;charset=utf-8;"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="getfoodie-demo-sales.csv";a.click();URL.revokeObjectURL(url);
+}
+function refreshCatalog(){const tiles=$("restaurantTiles"),grid=$("foodGrid");if(tiles)tiles.innerHTML=restaurantTiles();if(grid)grid.innerHTML=dishes();}
+function act(node){
+ const type=node.dataset.act,id=node.dataset.id;
+ if(type==="fill-login"){const acct=C.CREDENTIALS.find(x=>x.role===id);if(!acct)return;$("loginEmail").value=acct.email;$("loginPassword").value=acct.password;toast("Sample "+acct.role+" credentials filled. Click Sign in.");return;}
+ if(type==="show-password"){const input=$("loginPassword");input.type=input.type==="password"?"text":"password";node.textContent=input.type==="password"?"Show":"Hide";return;}
+ if(type==="signout")return signout();
+ if(type==="reset"){if(!confirm("Restore the original sample accounts, menu, orders and settings?"))return;state=C.seed();persist();search="";cat="All";storeFilter="All";orderFilter="All";render();toast("Demo sample data restored.");return;}
+ if(type==="close-modal"){closeModal();return;}
+ if(type==="about"){info();return;}
+ if(type==="home")return navigate(roleHome[session.role]);
+ if(!session)return;
+ if(type==="browse")return $("menu-section")?.scrollIntoView({behavior:"smooth"});
+ if(type==="shop")return navigate("/customer");
+ if(type==="go-orders")return navigate("/customer/orders");
+ if(type==="cart")return openCart();
+ if(type==="close-cart"){closeModal();return navigate("/customer");}
+ if(type==="checkout"){closeModal();fulfilment="Delivery";return navigate("/customer/checkout");}
+ if(type==="clear-cart"){C.clearCart(state,session);persist();closeModal();render();toast("Cart cleared.");return;}
+ if(type==="filter-store"){storeFilter=storeFilter===id?"All":id;refreshCatalog();return $("menu-section")?.scrollIntoView({behavior:"smooth"});}
+ if(type==="filter-category"){cat=id;render();return $("menu-section")?.scrollIntoView();}
+ if(type==="clear-filters"){cat="All";search="";storeFilter="All";render();return;}
+ if(type==="order-filter"){orderFilter=id;render();return;}
+ if(type==="add"){C.addToCart(state,session,id);persist();render();toast("Added to basket.");return;}
+ if(type==="qty"){const current=C.getCart(state,session).find(i=>i.id===Number(id));if(!current)return;C.setQty(state,session,id,current.qty+Number(node.dataset.step));persist();render();openCart();return;}
+ if(type==="cancel"){C.requestCancel(state,session,id);persist();render();toast("Cancellation request sent to vendor.");return;}
+ if(type==="rate"){C.rateOrder(state,session,id,Number(node.dataset.rating));persist();render();toast("Thank you for your demo rating!");return;}
+ if(type==="reorder"){
+  const o=C.ownOrder(state,session,id);
+  C.clearCart(state,session);
+  let added=0;for(const line of o.items){try{C.addToCart(state,session,line.id,Math.min(line.qty,item(line.id)?.stock||0));added++;}catch(_){}}
+  persist();navigate("/customer");toast(added?"Available items moved into your cart.":"No items are currently available.");return;
+ }
+ if(type==="vendor-orders")return navigate("/vendor/orders");
+ if(type==="vendor-menu")return navigate("/vendor/menu");
+ if(type==="vendor-settings")return navigate("/vendor/settings");
+ if(type==="admin-settings")return navigate("/admin/settings");
+ if(type==="admin-vendors")return navigate("/admin/vendors");
+ if(type==="edit-item")return openItemEditor(id);
+ if(type==="toggle-item"){const f=item(id);if(!f||f.restaurantId!==ownStore().id)throw Error("Item not found.");f.active=!f.active;persist();render();toast(f.active?"Item now visible.":"Item hidden from customer menu.");return;}
+ if(type==="advance"){C.transition(state,session,id,node.dataset.status);persist();render();toast("Order status updated.");return;}
+ if(type==="reject")return askReject(id);
+ if(type==="decline-cancel"){C.declineCancel(state,session,id);persist();render();toast("Cancellation request declined.");return;}
+ if(type==="new-restaurant")return addApplicant();
+ if(type==="restaurant-status"){C.adminRestaurant(state,session,id,node.dataset.status);persist();render();toast("Restaurant status updated.");return;}
+ if(type==="enable-account"){const a=state.accounts.find(x=>x.id===id);C.setAccountEnabled(state,session,id,!a.enabled);persist();render();toast("Demo account access changed.");return;}
+ if(type==="export-vendor"){const r=ownStore();downloadCsv([["Order","Date","Status","Food subtotal","Delivery fee","Total","Payment"]].concat(state.orders.filter(o=>o.restaurantId===r.id).map(o=>[o.id,o.createdAt,o.status,o.subtotal,o.deliveryFee,o.total,o.paymentStatus])));return;}
+ if(type==="refresh"){state=C.load(localStorage);render();toast("Order list refreshed.");return;}
+}
+function formHandler(form){
+ const fd=new FormData(form),val=k=>fd.get(k),checked=k=>fd.has(k);
+ if(form.id==="loginForm"){
+  const result=C.login(state,val("email"),val("password"));
+  session=result;sessionStorage.setItem(C.SESSION,JSON.stringify(session));navigate(roleHome[session.role]);toast("Welcome back, "+session.name+"!");return;
+ }
+ if(!session)return;
+ if(form.id==="checkoutForm"){
+  const o=C.checkout(state,session,{fulfilment:val("fulfilment"),address:val("address"),notes:val("notes")});
+  persist();navigate("/customer/orders/"+encodeURIComponent(o.id));toast("Demo order "+o.id+" placed! No real order was created.");return;
+ }
+ if(form.id==="profileForm"){
+  C.updateProfile(state,session,{name:val("name"),phone:val("phone"),address:val("address")});persist();render();toast("Sample profile saved.");return;
+ }
+ if(form.id==="itemForm"){
+  C.saveItem(state,session,{id:val("id")||null,name:val("name"),description:val("description"),category:val("category"),price:val("price"),stock:val("stock"),active:checked("active")});persist();closeModal();render();toast("Menu item saved.");return;
+ }
+ if(form.id==="storeForm"){
+  C.updateStore(state,session,{name:val("name"),description:val("description"),address:val("address"),phone:val("phone"),opening:val("opening"),closing:val("closing"),prep:val("prep"),open:checked("open"),delivery:checked("delivery"),pickup:checked("pickup")});persist();render();toast("Restaurant setup saved.");return;
+ }
+ if(form.id==="rejectForm"){
+  C.transition(state,session,val("id"),"Rejected",val("reason"));persist();closeModal();render();toast("Order rejected and stock restored.");return;
+ }
+ if(form.id==="applicantForm"){
+  C.addRestaurant(state,session,{name:val("name"),category:val("category"),description:val("description")});persist();closeModal();render();toast("New sample applicant created.");return;
+ }
+ if(form.id==="platformForm"){
+  C.adminSettings(state,session,{name:val("name"),tagline:val("tagline"),announcement:val("announcement"),supportEmail:val("supportEmail"),deliveryFee:val("deliveryFee"),serviceFee:val("serviceFee"),minOrder:val("minOrder"),commission:val("commission"),orderingEnabled:checked("orderingEnabled"),pickupEnabled:checked("pickupEnabled"),autoApprove:checked("autoApprove")});persist();render();toast("Platform configuration saved.");return;
+ }
+}
+document.addEventListener("click",e=>{
+ const link=e.target.closest("[data-link]");
+ if(link){e.preventDefault();navigate(link.dataset.link);return;}
+ const btn=e.target.closest("[data-act]");
+ if(!btn)return;
+ try{act(btn);}catch(err){error(err);}
+});
+document.addEventListener("submit",e=>{
+ e.preventDefault();
+ try{formHandler(e.target);}catch(err){error(err);}
+});
+document.addEventListener("change",e=>{
+ if(e.target.name==="fulfilment"&&e.target.form?.id==="checkoutForm"){fulfilment=e.target.value;render();}
+});
+document.addEventListener("input",e=>{
+ if(e.target.id==="catalogSearch"){search=e.target.value.toLowerCase().trim();refreshCatalog();}
+});
 window.addEventListener("popstate",render);
+window.addEventListener("storage",e=>{if(e.key===C.KEY){state=C.load(localStorage);render();}});
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal();});
 render();
