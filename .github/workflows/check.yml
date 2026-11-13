@@ -1,0 +1,18 @@
+name: Demo checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check JavaScript syntax
+        run: node --check app.js
+      - name: Validate Vercel config and demo entrypoint
+        run: |
+          node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('vercel.json','utf8'));if(v.version!==2)process.exit(1);const h=fs.readFileSync('index.html','utf8');if(!h.includes('/app.js')||!h.includes('/styles.css')||!h.includes('PORTFOLIO DEMO'))process.exit(1);"
