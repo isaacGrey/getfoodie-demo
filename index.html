@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f7f8f7">
+  <meta name="description" content="GetFoodie portfolio demo: explore a fictional food-ordering platform with customer, restaurant, and administrator experiences.">
+  <title>GetFoodie — Interactive Portfolio Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="demo-strip"><span class="strip-dot"></span><strong>PORTFOLIO DEMO</strong><span>Fictional data · Simulated checkout · No real payments</span><button id="demoInfo" aria-label="About this demo">What is this?</button></div>
+  <div class="shell">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <a href="/" class="brand" data-route="/" aria-label="GetFoodie home"><span class="brand-icon">✳</span><span>getfoodie<span class="brand-period">.</span></span></a>
+      <div class="sidebar-label">WORKSPACE</div>
+      <nav id="sideNav" class="side-nav" aria-label="App navigation"></nav>
+      <div class="side-bottom"><div class="portfolio-note"><span>✦ &nbsp;PORTFOLIO PROJECT</span><p>Experience the workflows of a food ordering platform, safely.</p></div><button class="side-link" id="resetDemo"><span>↻</span> Reset sample data</button></div>
+    </aside>
+    <div class="main-area">
+      <header class="topbar"><div class="mobile-brand"><span class="brand-icon">✳</span><b>getfoodie.</b></div><div class="crumb" id="breadcrumb">Explore / All restaurants</div><div class="top-actions"><span class="status-live"><span></span> Demo environment</span><button id="accountButton" class="account-button" type="button"><span id="avatar" class="avatar">G</span><span id="accountText">Guest</span><span class="chevron">⌄</span></button></div></header>
+      <main id="app" tabindex="-1" aria-live="polite"></main>
+      <footer class="footer"><span>GetFoodie · Portfolio demonstration</span><span>All content and transactions in this demo are simulated.</span></footer>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="loginDialog" class="dialog"><form id="loginForm" class="dialog-pad"><div class="dialog-heading"><div><span class="eyebrow">EXPLORE THE PLATFORM</span><h2>Choose a demo account</h2></div><button class="icon-button" type="button" data-close="loginDialog" aria-label="Close">×</button></div><p class="subtext">These accounts only select a simulated role in your browser. No real authentication takes place.</p><div class="account-options" id="accountOptions"></div><div class="field-row"><label>Email<input id="demoEmail" type="email" required autocomplete="off" spellcheck="false"></label><label>Password<input id="demoPassword" type="text" required autocomplete="off" spellcheck="false"></label></div><p id="loginError" class="form-error" role="alert"></p><button type="submit" class="button primary wide">Enter demo workspace <span>→</span></button></form></dialog>
+  <dialog id="cartDialog" class="dialog drawer"><div class="drawer-layout"><div class="dialog-heading"><div><span class="eyebrow">YOUR ORDER</span><h2>Shopping cart</h2></div><button class="icon-button" type="button" data-close="cartDialog" aria-label="Close">×</button></div><div id="cartContent"></div></div></dialog>
+  <dialog id="checkoutDialog" class="dialog"><form id="checkoutForm" class="dialog-pad"><div class="dialog-heading"><div><span class="eyebrow">FINAL STEP · DEMO</span><h2>Review your order</h2></div><button class="icon-button" type="button" data-close="checkoutDialog" aria-label="Close">×</button></div><div class="notice warning">This is a simulated checkout. Do not enter real payment details.</div><div id="checkoutSummary"></div><label class="form-label">Delivery address<input id="checkoutAddress" type="text" maxlength="150" placeholder="Sample address, e.g. 12 Demo Street, Manila" required></label><label class="form-label">Payment method<select id="checkoutPayment"><option value="Cash on delivery (demo)">Cash on delivery (demo)</option><option value="GCash (simulation only)">GCash (simulation only)</option></select></label><button class="button primary wide" type="submit">Place demo order <span>→</span></button></form></dialog>
+  <dialog id="detailDialog" class="dialog"><div id="detailContent" class="dialog-pad"></div></dialog>
+  <dialog id="infoDialog" class="dialog"><div class="dialog-pad"><div class="dialog-heading"><h2>About this demonstration</h2><button class="icon-button" type="button" data-close="infoDialog" aria-label="Close">×</button></div><p class="subtext">GetFoodie is a practice and portfolio showcase. This demo is a standalone, browser-based reconstruction of the app's key customer, restaurant owner, and admin flows.</p><div class="notice">No backend or real accounts are connected. Ordering, payment options, statuses and approvals are simulated and saved locally in your browser. This is not a live food-delivery service.</div><button class="button primary wide" data-close="infoDialog" type="button">Got it</button></div></dialog>
+</body>
+</html>
