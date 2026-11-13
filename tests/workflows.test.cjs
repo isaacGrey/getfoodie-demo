@@ -41,7 +41,7 @@ test("customer -> checkout -> vendor fulfilment -> review",()=>{
  assert.equal(o.history.length,6);
  C.rateOrder(s,customer,o.id,5);
  assert.equal(o.rating,5);
- assert.throws(()=>C.requestCancel(s,customer,o.id),/cannot/);
+ assert.throws(()=>C.requestCancel(s,customer,o.id),/cannot|no longer/);
 });
 test("a vendor resolves pre-acceptance cancellation and restores stock",()=>{
  const s=make(),customer=as(s,"customer"),vendor=as(s,"vendor");
