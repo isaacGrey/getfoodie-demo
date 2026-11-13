@@ -113,10 +113,20 @@ function transition(s,user,id,to,reason=""){
  const map={"Placed":["Accepted","Rejected","Cancelled"],"Accepted":["Preparing","Cancelled"],"Preparing":["Ready","Cancelled"],"Ready":[o.fulfilment==="Pickup"?"Delivered":"Out for delivery","Cancelled"],"Out for delivery":["Delivered"]};
  if(!(map[from]||[]).includes(to))throw Error("Invalid status change from "+from+" to "+to+".");
  if(o.cancelRequested&&to!=="Cancelled"&&to!=="Rejected")throw Error("Please resolve the cancellation request first.");
+ if(to==="Out for delivery"&&(!o.driver||!o.driver.name||!o.driver.phone))throw Error("Assign a sample delivery rider before dispatch.");
  if(to==="Rejected"&&!String(reason).trim())throw Error("A rejection reason is required.");
  o.status=to;o.history.push({status:to,at:new Date().toISOString(),reason:String(reason).trim().slice(0,150)});
  if(to==="Cancelled"||to==="Rejected"){for(const line of o.items){const f=item(s,line.id);if(f)f.stock+=line.qty;}o.cancelRequested=false;}
  if(to==="Delivered")o.paymentStatus="Collected";addLog(s,"fulfilment",o.id+" marked "+to);return o;
+}
+function assignDriver(s,user,id,data){
+ const o=vendorOrder(s,user,id);
+ if(o.fulfilment!=="Delivery"||!["Ready","Out for delivery"].includes(o.status))throw Error("Rider assignment is only available for ready delivery orders.");
+ const name=String(data.name||"").trim(),phone=String(data.phone||"").trim();
+ if(name.length<2||name.length>70||phone.length<5||phone.length>30)throw Error("Enter a valid sample rider name and contact.");
+ o.driver={name,phone};
+ addLog(s,"fulfilment","Rider assigned to "+o.id);
+ return o;
 }
 function requestCancel(s,user,id){
  const o=ownOrder(s,user,id);if(DONE.includes(o.status)||o.status==="Out for delivery")throw Error("This order can no longer be cancelled.");
@@ -154,5 +164,5 @@ function addRestaurant(s,user,data){adminOnly(user);const name=String(data.name|
 function adminSettings(s,user,data){adminOnly(user);const x=s.settings;for(const field of ["name","tagline","announcement","supportEmail"])if(data[field]!=null)x[field]=String(data[field]).trim().slice(0,180);for(const field of ["deliveryFee","serviceFee","commission","minOrder"]){if(data[field]!=null){const n=Number(data[field]);if(!Number.isFinite(n)||n<0||n>(field==="commission"?100:5000))throw Error("Invalid "+field);x[field]=money(n);}}for(const field of ["orderingEnabled","autoApprove","pickupEnabled"])if(data[field]!=null)x[field]=!!data[field];addLog(s,"admin","Platform configuration updated");return x;}
 function setAccountEnabled(s,user,id,enabled){adminOnly(user);const a=s.accounts.find(x=>x.id===id);if(!a||a.role==="admin")throw Error("This account cannot be changed.");a.enabled=!!enabled;addLog(s,"admin",a.name+" "+(enabled?"enabled":"disabled"));return a;}
 function updateProfile(s,user,data){const a=s.accounts.find(x=>x.id===user.id);if(!a)throw Error("Account unavailable.");const name=String(data.name||"").trim();if(name.length<2||name.length>60)throw Error("Enter a valid display name.");a.name=name;a.phone=String(data.phone||"").trim().slice(0,30);a.address=String(data.address||"").trim().slice(0,160);return a;}
-return {KEY,SESSION,CREDENTIALS,IMAGES,FLOW,DONE,seed,load,save,account,login,vendorStore,item,byId,getCart,addToCart,setQty,clearCart,cartInfo,checkout,ownOrder,vendorOrder,transition,requestCancel,declineCancel,rateOrder,saveItem,updateStore,adminRestaurant,addRestaurant,adminSettings,setAccountEnabled,updateProfile,addLog,clone,money};
+return {KEY,SESSION,CREDENTIALS,IMAGES,FLOW,DONE,seed,load,save,account,login,vendorStore,item,byId,getCart,addToCart,setQty,clearCart,cartInfo,checkout,ownOrder,vendorOrder,transition,assignDriver,requestCancel,declineCancel,rateOrder,saveItem,updateStore,adminRestaurant,addRestaurant,adminSettings,setAccountEnabled,updateProfile,addLog,clone,money};
 });
