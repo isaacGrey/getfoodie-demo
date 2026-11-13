@@ -132,9 +132,9 @@ test("vendor can set up its store and manage the menu with stock",()=>{
 test("driver assignment is limited to the vendor's ready delivery orders",()=>{
  const s=make(),vendor=as(s,"vendor"),customer=as(s,"customer");
  assert.throws(()=>C.assignDriver(s,customer,"GF-1002",{name:"A",phone:"123"}),/Vendor/);
- assert.throws(()=>C.assignDriver(s,vendor,"GF-1002",{name:"X",phone:"123"}),/valid/);
  assert.throws(()=>C.assignDriver(s,vendor,"GF-1001",{name:"Demo Rider",phone:"09990001234"}),/only available/);
  C.transition(s,vendor,"GF-1002","Ready");
+ assert.throws(()=>C.assignDriver(s,vendor,"GF-1002",{name:"X",phone:"123"}),/valid/);
  C.assignDriver(s,vendor,"GF-1002",{name:"Demo Rider",phone:"09990001234"});
  C.transition(s,vendor,"GF-1002","Out for delivery");
  assert.equal(s.orders.find(x=>x.id==="GF-1002").driver.phone,"09990001234");
