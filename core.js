@@ -91,8 +91,8 @@ function checkout(s,user,input){
  if(user.role!=="customer")throw Error("Please log in as customer.");
  if(!s.settings.orderingEnabled)throw Error("Ordering is paused by the administrator.");
  const fulfilment=input.fulfilment==="Pickup"?"Pickup":"Delivery",info=cartInfo(s,user,fulfilment),r=info.restaurant;
- if(!r||!r.open||r.status!=="Approved")throw Error("Restaurant unavailable.");
  if(!info.lines.length)throw Error("Cart is empty.");
+ if(!r||!r.open||r.status!=="Approved")throw Error("Restaurant unavailable.");
  if(info.subtotal<s.settings.minOrder)throw Error("Minimum food subtotal is "+s.settings.minOrder+" PHP.");
  if(fulfilment==="Pickup"&&(!s.settings.pickupEnabled||!r.pickup))throw Error("Pickup is not available.");
  if(fulfilment==="Delivery"&&!r.delivery)throw Error("Delivery is not available.");
@@ -150,7 +150,7 @@ function updateStore(s,user,data){
 }
 function adminOnly(user){if(user.role!=="admin")throw Error("Admin access required.");}
 function adminRestaurant(s,user,id,status){adminOnly(user);const r=byId(s,id);if(!r||!["Approved","Pending","Suspended","Declined"].includes(status))throw Error("Invalid restaurant or status.");r.status=status;addLog(s,"admin",r.name+" marked "+status);return r;}
-function addRestaurant(s,user,data){adminOnly(user);const name=String(data.name||"").trim();if(name.length<3)throw Error("Enter a restaurant name.");const r={id:"r"+s.nextRestaurant++,ownerId:null,name,category:String(data.category||"Other").trim().slice(0,60),description:String(data.description||"Pending review").trim().slice(0,180),image:image("shop"),rating:0,eta:25,open:false,status:s.settings.autoApprove?"Approved":"Pending",prep:20,opening:"09:00",closing:"21:00",delivery:true,pickup:true,phone:"",address:"Demo location",categories:["Other"]};s.restaurants.push(r);addLog(s,"admin","New restaurant application: "+name);return r;}
+function addRestaurant(s,user,data){adminOnly(user);const name=String(data.name||"").trim();if(name.length<3)throw Error("Enter a restaurant name.");const r={id:"r"+s.nextRestaurant++,ownerId:null,name,category:String(data.category||"Other").trim().slice(0,60),description:String(data.description||"Pending review").trim().slice(0,180),image:image("shop"),rating:0,eta:25,open:true,status:s.settings.autoApprove?"Approved":"Pending",prep:20,opening:"09:00",closing:"21:00",delivery:true,pickup:true,phone:"",address:"Demo location",categories:["Other"]};s.restaurants.push(r);addLog(s,"admin","New restaurant application: "+name);return r;}
 function adminSettings(s,user,data){adminOnly(user);const x=s.settings;for(const field of ["name","tagline","announcement","supportEmail"])if(data[field]!=null)x[field]=String(data[field]).trim().slice(0,180);for(const field of ["deliveryFee","serviceFee","commission","minOrder"]){if(data[field]!=null){const n=Number(data[field]);if(!Number.isFinite(n)||n<0||n>(field==="commission"?100:5000))throw Error("Invalid "+field);x[field]=money(n);}}for(const field of ["orderingEnabled","autoApprove","pickupEnabled"])if(data[field]!=null)x[field]=!!data[field];addLog(s,"admin","Platform configuration updated");return x;}
 function setAccountEnabled(s,user,id,enabled){adminOnly(user);const a=s.accounts.find(x=>x.id===id);if(!a||a.role==="admin")throw Error("This account cannot be changed.");a.enabled=!!enabled;addLog(s,"admin",a.name+" "+(enabled?"enabled":"disabled"));return a;}
 function updateProfile(s,user,data){const a=s.accounts.find(x=>x.id===user.id);if(!a)throw Error("Account unavailable.");const name=String(data.name||"").trim();if(name.length<2||name.length>60)throw Error("Enter a valid display name.");a.name=name;a.phone=String(data.phone||"").trim().slice(0,30);a.address=String(data.address||"").trim().slice(0,160);return a;}
