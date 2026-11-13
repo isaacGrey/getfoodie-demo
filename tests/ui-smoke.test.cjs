@@ -68,3 +68,13 @@ test("role-based routing does not render another role's workspace",()=>{
  assert.equal(x.location.pathname,"/customer");
  assert.doesNotMatch(x.root.innerHTML,/Platform setup/);
 });
+
+test("rider assignment form appears before dispatch and rider appears on customer tracking",()=>{
+ const x=boot("vendor");
+ x.run('FoodieCore.transition(state,session,"GF-1002","Ready");persist();navigate("/vendor/orders/GF-1002")');
+ assert.match(x.root.innerHTML,/driverForm/);
+ assert.match(x.root.innerHTML,/Assign a sample rider/);
+ x.run('FoodieCore.assignDriver(state,session,"GF-1002",{name:"Test Rider",phone:"09991234567"});FoodieCore.transition(state,session,"GF-1002","Out for delivery");persist();session=FoodieCore.login(state,"customer@demo.getfoodie.app","Demo123!");sessionStorage.setItem(FoodieCore.SESSION,JSON.stringify(session));navigate("/customer/orders/GF-1002")');
+ assert.match(x.root.innerHTML,/Assigned demo rider/);
+ assert.match(x.root.innerHTML,/Test Rider/);
+});
