@@ -110,7 +110,7 @@ function ownOrder(s,user,id){const o=s.orders.find(x=>x.id===id);if(!o||user.rol
 function vendorOrder(s,user,id){if(user.role!=="vendor")throw Error("Vendor login required.");const store=vendorStore(s,user),o=s.orders.find(x=>x.id===id);if(!store||!o||o.restaurantId!==store.id)throw Error("Order unavailable.");return o;}
 function transition(s,user,id,to,reason=""){
  const o=vendorOrder(s,user,id),from=o.status;
- const map={"Placed":["Accepted","Rejected"],"Accepted":["Preparing","Cancelled"],"Preparing":["Ready","Cancelled"],"Ready":[o.fulfilment==="Pickup"?"Delivered":"Out for delivery","Cancelled"],"Out for delivery":["Delivered"]};
+ const map={"Placed":["Accepted","Rejected","Cancelled"],"Accepted":["Preparing","Cancelled"],"Preparing":["Ready","Cancelled"],"Ready":[o.fulfilment==="Pickup"?"Delivered":"Out for delivery","Cancelled"],"Out for delivery":["Delivered"]};
  if(!(map[from]||[]).includes(to))throw Error("Invalid status change from "+from+" to "+to+".");
  if(o.cancelRequested&&to!=="Cancelled"&&to!=="Rejected")throw Error("Please resolve the cancellation request first.");
  if(to==="Rejected"&&!String(reason).trim())throw Error("A rejection reason is required.");
@@ -119,7 +119,7 @@ function transition(s,user,id,to,reason=""){
  if(to==="Delivered")o.paymentStatus="Collected";addLog(s,"fulfilment",o.id+" marked "+to);return o;
 }
 function requestCancel(s,user,id){
- const o=ownOrder(s,user,id);if(DONE.includes(o.status))throw Error("This order cannot be cancelled.");
+ const o=ownOrder(s,user,id);if(DONE.includes(o.status)||o.status==="Out for delivery")throw Error("This order can no longer be cancelled.");
  if(o.cancelRequested)throw Error("Cancellation already requested.");
  o.cancelRequested=true;addLog(s,"order","Customer requested cancellation for "+o.id);return o;
 }
@@ -150,7 +150,7 @@ function updateStore(s,user,data){
 }
 function adminOnly(user){if(user.role!=="admin")throw Error("Admin access required.");}
 function adminRestaurant(s,user,id,status){adminOnly(user);const r=byId(s,id);if(!r||!["Approved","Pending","Suspended","Declined"].includes(status))throw Error("Invalid restaurant or status.");r.status=status;addLog(s,"admin",r.name+" marked "+status);return r;}
-function addRestaurant(s,user,data){adminOnly(user);const name=String(data.name||"").trim();if(name.length<3)throw Error("Enter a restaurant name.");const r={id:"r"+s.nextRestaurant++,ownerId:null,name,category:String(data.category||"Other").trim().slice(0,60),description:String(data.description||"Pending review").trim().slice(0,180),image:image("shop"),rating:0,eta:25,open:false,status:"Pending",prep:20,opening:"09:00",closing:"21:00",delivery:true,pickup:true,phone:"",address:"Demo location",categories:["Other"]};s.restaurants.push(r);addLog(s,"admin","New restaurant application: "+name);return r;}
+function addRestaurant(s,user,data){adminOnly(user);const name=String(data.name||"").trim();if(name.length<3)throw Error("Enter a restaurant name.");const r={id:"r"+s.nextRestaurant++,ownerId:null,name,category:String(data.category||"Other").trim().slice(0,60),description:String(data.description||"Pending review").trim().slice(0,180),image:image("shop"),rating:0,eta:25,open:false,status:s.settings.autoApprove?"Approved":"Pending",prep:20,opening:"09:00",closing:"21:00",delivery:true,pickup:true,phone:"",address:"Demo location",categories:["Other"]};s.restaurants.push(r);addLog(s,"admin","New restaurant application: "+name);return r;}
 function adminSettings(s,user,data){adminOnly(user);const x=s.settings;for(const field of ["name","tagline","announcement","supportEmail"])if(data[field]!=null)x[field]=String(data[field]).trim().slice(0,180);for(const field of ["deliveryFee","serviceFee","commission","minOrder"]){if(data[field]!=null){const n=Number(data[field]);if(!Number.isFinite(n)||n<0||n>(field==="commission"?100:5000))throw Error("Invalid "+field);x[field]=money(n);}}for(const field of ["orderingEnabled","autoApprove","pickupEnabled"])if(data[field]!=null)x[field]=!!data[field];addLog(s,"admin","Platform configuration updated");return x;}
 function setAccountEnabled(s,user,id,enabled){adminOnly(user);const a=s.accounts.find(x=>x.id===id);if(!a||a.role==="admin")throw Error("This account cannot be changed.");a.enabled=!!enabled;addLog(s,"admin",a.name+" "+(enabled?"enabled":"disabled"));return a;}
 function updateProfile(s,user,data){const a=s.accounts.find(x=>x.id===user.id);if(!a)throw Error("Account unavailable.");const name=String(data.name||"").trim();if(name.length<2||name.length>60)throw Error("Enter a valid display name.");a.name=name;a.phone=String(data.phone||"").trim().slice(0,30);a.address=String(data.address||"").trim().slice(0,160);return a;}
