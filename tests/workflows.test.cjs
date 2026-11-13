@@ -35,7 +35,11 @@ test("customer -> checkout -> vendor fulfilment -> review",()=>{
  assert.equal(C.item(s,1).stock,start-2);
  assert.equal(C.getCart(s,customer).length,0);
  assert.equal(C.vendorOrder(s,vendor,o.id).status,"Placed");
- for(const step of ["Accepted","Preparing","Ready","Out for delivery","Delivered"])C.transition(s,vendor,o.id,step);
+ for(const step of ["Accepted","Preparing","Ready"])C.transition(s,vendor,o.id,step);
+ assert.throws(()=>C.transition(s,vendor,o.id,"Out for delivery"),/Assign/);
+ C.assignDriver(s,vendor,o.id,{name:"Sample Courier",phone:"09990000111"});
+ for(const step of ["Out for delivery","Delivered"])C.transition(s,vendor,o.id,step);
+ assert.equal(o.driver.name,"Sample Courier");
  assert.equal(o.status,"Delivered");
  assert.equal(o.paymentStatus,"Collected");
  assert.equal(o.history.length,6);
@@ -123,4 +127,15 @@ test("vendor can set up its store and manage the menu with stock",()=>{
  C.saveItem(s,vendor,{id:f.id,name:"Summer Burger",description:"A seasonal classic with cheese.",category:"Seasonal",price:259,stock:9,active:false});
  assert.equal(C.item(s,f.id).active,false);
  assert.throws(()=>C.saveItem(s,vendor,{id:5,name:"Steal",description:"Bad edit",category:"Pizza",price:50,stock:5}),/unavailable/);
+});
+
+test("driver assignment is limited to the vendor's ready delivery orders",()=>{
+ const s=make(),vendor=as(s,"vendor"),customer=as(s,"customer");
+ assert.throws(()=>C.assignDriver(s,customer,"GF-1002",{name:"A",phone:"123"}),/Vendor/);
+ assert.throws(()=>C.assignDriver(s,vendor,"GF-1002",{name:"X",phone:"123"}),/valid/);
+ assert.throws(()=>C.assignDriver(s,vendor,"GF-1001",{name:"Demo Rider",phone:"09990001234"}),/only available/);
+ C.transition(s,vendor,"GF-1002","Ready");
+ C.assignDriver(s,vendor,"GF-1002",{name:"Demo Rider",phone:"09990001234"});
+ C.transition(s,vendor,"GF-1002","Out for delivery");
+ assert.equal(s.orders.find(x=>x.id==="GF-1002").driver.phone,"09990001234");
 });
